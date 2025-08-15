@@ -8,3 +8,8 @@ eval_results
 tests
 .DS_Store
 gradio.sh
+
+debug_results
+data/bagel_example
+data/demo_data
+models

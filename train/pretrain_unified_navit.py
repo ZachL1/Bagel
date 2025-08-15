@@ -23,6 +23,9 @@ from transformers.optimization import (
     get_cosine_with_min_lr_schedule_with_warmup,
 )
 
+import sys
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from data.dataset_base import DataConfig, PackedDataset, collate_wrapper
 from data.data_utils import add_special_tokens
 from modeling.autoencoder import load_ae
