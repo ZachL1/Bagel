@@ -25,7 +25,7 @@ WORKDIR /workspace
 # Copy requirements first for better caching
 # COPY requirements.txt .
 
-RUN git clone https://github.com/ByteDance-Seed/Bagel.git
+RUN git clone https://github.com/ZachL1/Bagel.git
 
 # Upgrade pip and install Python dependencies
 RUN pip install --upgrade pip setuptools wheel
