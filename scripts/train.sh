@@ -17,7 +17,7 @@ torchrun \
   --master_addr=$master_addr \
   --master_port=$master_port \
   train/pretrain_unified_navit.py \
-  --dataset_config_file ./data/configs/example.yaml \
+  --dataset_config_file ./data/configs/aes.yaml \
   --layer_module Qwen2MoTDecoderLayer \
   --vae_path $vae_path \
   --vit_path $vit_path \
@@ -28,7 +28,6 @@ torchrun \
   --num_workers 1 \
   --num_shard 1 \
   --wandb_runid 0 \
-  --max_latent_size 64  # 32 for low-resolution pre-training
 
 
 # model_path=models/BAGEL-7B-MoT

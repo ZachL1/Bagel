@@ -4,12 +4,14 @@
 from .interleave_datasets import UnifiedEditIterableDataset
 from .t2i_dataset import T2IIterableDataset
 from .vlm_dataset import SftJSONLIterableDataset
+from .aeseditor_dataset import AesEditorIterableDataset
 
 
 DATASET_REGISTRY = {
     't2i_pretrain': T2IIterableDataset,
     'vlm_sft': SftJSONLIterableDataset,
     'unified_edit': UnifiedEditIterableDataset,
+    'aes_edit': AesEditorIterableDataset,
 }
 
 
@@ -34,6 +36,18 @@ DATASET_INFO = {
 			'data_dir': 'data/bagel_example/vlm/images',
 			'jsonl_path': 'data/bagel_example/vlm/llava_ov_si.jsonl',
 			'num_total_samples': 1000
+		},
+        'aesmit': {
+			'data_dir': 'data/sft_data/AesMMIT/images_21904',
+			'jsonl_path': 'data/sft_data/AesMMIT/AesMMIT_labels.jsonl',
+			'num_total_samples': 409000
+		},
+    },
+    'aes_edit': {
+        'aeseditor': {
+			'data_dir': 'data/sft_data/AesEditor',
+			'jsonl_path': 'data/sft_data/AesEditor/data_json/train.jsonl',
+			'num_total_samples': 99882
 		},
     },
 }
