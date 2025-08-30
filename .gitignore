@@ -11,5 +11,5 @@ gradio.sh
 
 debug_results
 data/bagel_example
-data/demo_data
+data/sft_data
 models

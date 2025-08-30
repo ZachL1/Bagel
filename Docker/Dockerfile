@@ -14,9 +14,16 @@ RUN apt-get update && apt-get install -y \
     g++ \
     git \
     wget \
+    vim \
     curl libgl1 \
     libglib2.0-0 \
+    openssh-server \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
+
+# Set up SSH server
+RUN mkdir -p /run/sshd && \
+    chmod 755 /run/sshd && \
+    /usr/sbin/sshd
 
 # Set working directory
 RUN mkdir -p /workspace
