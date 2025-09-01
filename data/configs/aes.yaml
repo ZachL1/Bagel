@@ -27,7 +27,7 @@ aes_edit:
     image_stride: 14
     max_image_size: 518
     min_image_size: 224
-  is_mandatory: false
+  is_mandatory: true
   shuffle_lines: True
   shuffle_seed: 0
   num_used_data:
