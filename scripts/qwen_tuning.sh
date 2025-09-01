@@ -10,7 +10,6 @@ exp_name=from_qwen25_7b
 output_path=./results/$exp_name
 ckpt_path=$output_path/checkpoints
 
-# source /mnt/bn/ecom-piq-dev-arnold/annan/miniconda3/bin/activate
 llm_path=./models/Qwen2.5-7B-Instruct
 vae_path=./models/BAGEL-7B-MoT/ae.safetensors
 vit_path=./models/siglip-so400m-14-980-flash-attn2-navit
