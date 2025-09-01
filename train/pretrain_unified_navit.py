@@ -175,7 +175,7 @@ class TrainingArguments:
         metadata={"help": "Root directory for model checkpoints."}
     )
     wandb_project: str = field(
-        default="bagel",
+        default="AesBagel",
         metadata={"help": "Weights & Biases project name."}
     )
     wandb_name: str = field(
