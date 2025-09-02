@@ -6,7 +6,7 @@ node_rank=${ARNOLD_ID}
 master_addr=${ARNOLD_WORKER_0_HOST}
 master_port=(${ARNOLD_WORKER_0_PORT//,/ })
 
-exp_name=from_qwen25_7b
+exp_name=from_qwen25_7b_edit0.8
 output_path=./results/$exp_name
 ckpt_path=$output_path/checkpoints
 
@@ -28,10 +28,12 @@ torchrun \
   --llm_path $llm_path \
   --use_flex True \
   --max_latent_size 64 \
+  --expected_num_tokens 16384 \
   --max_num_tokens 36864 \
+  --max_num_tokens_per_sample 16384 \
   --num_workers 1 \
   --num_shard 8 \
-  --wandb_runid 0 \
+  --wandb_runid 1 \
   --wandb_name $exp_name \
   --results_dir $output_path \
   --checkpoint_dir $ckpt_path \
