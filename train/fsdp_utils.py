@@ -3,6 +3,7 @@
 
 import functools
 import os
+import gc
 
 import torch
 import torch.distributed as dist
@@ -16,7 +17,10 @@ from torch.distributed.fsdp import (
     ShardingStrategy,
     FullStateDictConfig,
     StateDictType,
+    ShardedStateDictConfig,
 )
+from torch.distributed.checkpoint import save_state_dict, load_state_dict
+from torch.distributed.checkpoint.filesystem import FileSystemWriter, FileSystemReader
 from torch.distributed.fsdp.wrap import transformer_auto_wrap_policy
 from safetensors.torch import load_file, save_file
 
@@ -183,6 +187,131 @@ class FSDPCheckpoint:
             logger.info(f"Training from scratch.")
         return model, ema_model
 
+    @staticmethod
+    def fsdp_save_fsdp_ckpt(
+        ckpt_dir,
+        train_steps,
+        model,
+        ema_model,
+        optimizer,
+        scheduler,
+        data_status,
+        logger,
+        fsdp_config,
+    ):
+        save_path = os.path.join(ckpt_dir, f"{train_steps:07d}")
+        os.makedirs(save_path, exist_ok=True)
+        logger.info(f"Saving checkpoint to {save_path}.")
+
+        if ema_model is not None:
+            with FSDP.state_dict_type(
+                ema_model,
+                StateDictType.SHARDED_STATE_DICT,
+                ShardedStateDictConfig(offload_to_cpu=True),
+            ):
+                ema_state_dict = ema_model.state_dict()
+                ema_writer = FileSystemWriter(os.path.join(save_path, "ema"))
+                save_state_dict(ema_state_dict, ema_writer)
+                del ema_state_dict
+                gc.collect()
+                torch.cuda.empty_cache()
+
+        with FSDP.state_dict_type(
+            model, StateDictType.SHARDED_STATE_DICT, ShardedStateDictConfig(offload_to_cpu=True)
+        ):
+            model_state_dict = model.state_dict()
+            model_writer = FileSystemWriter(os.path.join(save_path, "model"))
+            save_state_dict(model_state_dict, model_writer)
+            del model_state_dict
+            gc.collect()
+            torch.cuda.empty_cache()
+
+        with FSDP.state_dict_type(model, StateDictType.LOCAL_STATE_DICT):
+            if fsdp_config.sharding_strategy == "FULL_SHARD":
+                shard_index = dist.get_rank()
+                total_shards = dist.get_world_size()
+            elif fsdp_config.sharding_strategy == "HYBRID_SHARD":
+                shard_index = dist.get_rank() % fsdp_config.num_shard
+                total_shards = fsdp_config.num_shard
+            else:
+                raise NotImplementedError
+
+            optimizer_save_path = os.path.join(
+                save_path, f"optimizer.{shard_index:05d}-of-{total_shards:05d}.pt"
+            )
+            if fsdp_config.sharding_strategy == "FULL_SHARD":
+                torch.save(optimizer.state_dict(), optimizer_save_path)
+            elif fsdp_config.sharding_strategy == "HYBRID_SHARD":
+                if dist.get_rank() < fsdp_config.num_shard:
+                    torch.save(optimizer.state_dict(), optimizer_save_path)
+            else:
+                raise NotImplementedError
+
+        if dist.get_rank() == 0 and scheduler is not None:
+            torch.save(scheduler.state_dict(), os.path.join(save_path, "scheduler.pt"))
+
+        if data_status is not None:
+            os.makedirs(os.path.join(save_path, "data_status"), exist_ok=True)
+            torch.save(
+                data_status, os.path.join(save_path, "data_status", f"rank{dist.get_rank()}.pt")
+            )
+            del data_status
+            gc.collect()
+            torch.cuda.empty_cache()
+
+        dist.barrier()
+        return
+
+    @staticmethod
+    def try_load_fsdp_ckpt(resume_from, logger, model, ema_model=None, resume_from_ema=False):
+        if resume_from is not None and os.path.exists(resume_from):
+            logger.info(f"Loading checkpoint from {resume_from}.")
+            if resume_from_ema:
+                model_load_dir = os.path.join(resume_from, "ema")
+            else:
+                model_load_dir = os.path.join(resume_from, "model")
+
+            assert isinstance(model, FSDP)
+            with FSDP.state_dict_type(
+                model,
+                StateDictType.SHARDED_STATE_DICT,
+                ShardedStateDictConfig(offload_to_cpu=True),
+            ):
+                model_state_dict = model.state_dict()
+                model_reader = FileSystemReader(model_load_dir)
+                load_state_dict(model_state_dict, model_reader)
+                for key in ["latent_pos_embed.pos_embed", "vit_pos_embed.pos_embed"]:
+                    if key in model_state_dict:
+                        model_state_dict.pop(key)
+                msg = model.load_state_dict(model_state_dict, strict=False)
+                logger.info(msg)
+                del model_state_dict
+                gc.collect()
+                torch.cuda.empty_cache()
+
+            if ema_model is not None:
+                ema_load_dir = os.path.join(resume_from, "ema")
+                assert isinstance(ema_model, FSDP)
+                with FSDP.state_dict_type(
+                    ema_model,
+                    StateDictType.SHARDED_STATE_DICT,
+                    ShardedStateDictConfig(offload_to_cpu=True),
+                ):
+                    ema_state_dict = ema_model.state_dict()
+                    ema_reader = FileSystemReader(ema_load_dir)
+                    load_state_dict(ema_state_dict, ema_reader)
+                    for key in ["latent_pos_embed.pos_embed", "vit_pos_embed.pos_embed"]:
+                        if key in ema_state_dict:
+                            ema_state_dict.pop(key)
+                    msg = ema_model.load_state_dict(ema_state_dict, strict=False)
+                    logger.info(msg)
+                    del ema_state_dict
+                    gc.collect()
+                    torch.cuda.empty_cache()
+        else:
+            logger.info("Training from scratch.")
+        return model, ema_model
+        
     @staticmethod
     def try_load_train_state(resume_from, optimizer, scheduler, fsdp_config):
         if resume_from is not None and os.path.exists(resume_from):

@@ -35,6 +35,7 @@ torchrun \
   --max_num_tokens 36864 \
   --max_num_tokens_per_sample 16384 \
   --wandb_runid 101 \
+  --save_every 10 \
   --wandb_name $exp_name \
   --results_dir $output_path \
   --checkpoint_dir $ckpt_path \
