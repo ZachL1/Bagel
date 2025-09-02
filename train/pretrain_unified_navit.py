@@ -682,7 +682,7 @@ def main():
                 gather_list = None
             dist.gather_object(data_status, gather_list, dst=0)
 
-            FSDPCheckpoint.fsdp_save_ckpt(
+            FSDPCheckpoint.fsdp_save_fsdp_ckpt(
                 ckpt_dir=training_args.checkpoint_dir, 
                 train_steps=curr_step, 
                 model=fsdp_model, 
