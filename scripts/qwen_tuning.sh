@@ -15,8 +15,8 @@ vae_path=./models/BAGEL-7B-MoT/ae.safetensors
 vit_path=./models/siglip-so400m-14-980-flash-attn2-navit
 # Pre-training
 torchrun \
-  --nnodes=$num_nodes \
-  --node_rank=$node_rank \
+  --standalone \
+  --nnodes=1 \
   --nproc_per_node=8 \
   --master_addr=$master_addr \
   --master_port=$master_port \

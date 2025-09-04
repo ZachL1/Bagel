@@ -13,8 +13,8 @@ ckpt_path=$output_path/checkpoints
 model_path=./models/BAGEL-7B-MoT
 # Fine-tuning
 torchrun \
-  --nnodes=$num_nodes \
-  --node_rank=$node_rank \
+  --standalone \
+  --nnodes=1 \
   --nproc_per_node=8 \
   --master_addr=$master_addr \
   --master_port=$master_port \
@@ -28,7 +28,7 @@ torchrun \
   --auto_resume True \
   --resume-model-only True \
   --finetune-from-ema True \
-  --log_every 1 \
+  --log_every 10 \
   --lr 2e-5 \
   --num_worker 1 \
   --expected_num_tokens 16384 \

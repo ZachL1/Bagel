@@ -224,9 +224,9 @@ class Bagel(PreTrainedModel):
             has_mse = packed_timesteps > 0
             mse = (packed_mse_preds - target[has_mse]) ** 2
             
-            if dist.get_rank() == 0 and torch.all(packed_timesteps > 0):
-                # if edit task, there should exist t <=0
-                print(f"[NOTICE] packed_timesteps is all greater than 0.")
+            # if dist.get_rank() == 0 and torch.all(packed_timesteps > 0):
+            #     # if edit task, there should exist t <=0
+            #     print(f"[NOTICE] packed_timesteps is all greater than 0.")
 
         ce = None
         if ce_loss_indexes is not None:
