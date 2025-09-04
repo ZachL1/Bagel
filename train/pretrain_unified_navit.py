@@ -679,7 +679,7 @@ def main():
             wandb_log['mem_cache'] = mem_cache
 
             if dist.get_rank() == 0:
-                wandb.log(wandb_log, step=curr_step-1)
+                wandb.log(wandb_log, step=curr_step)
                 
                 # Visualize model predictions:
                 if visualizer is not None and pred_vis:

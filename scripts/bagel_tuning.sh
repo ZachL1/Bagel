@@ -16,8 +16,6 @@ torchrun \
   --standalone \
   --nnodes=1 \
   --nproc_per_node=8 \
-  --master_addr=$master_addr \
-  --master_port=$master_port \
   train/pretrain_unified_navit.py \
   --dataset_config_file ./data/configs/aes.yaml \
   --model_path $model_path \
@@ -34,7 +32,7 @@ torchrun \
   --expected_num_tokens 16384 \
   --max_num_tokens 36864 \
   --max_num_tokens_per_sample 16384 \
-  --wandb_runid 106 \
+  --wandb_runid 107 \
   --save_every 2000 \
   --wandb_name $exp_name \
   --results_dir $output_path \

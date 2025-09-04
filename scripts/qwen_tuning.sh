@@ -18,8 +18,6 @@ torchrun \
   --standalone \
   --nnodes=1 \
   --nproc_per_node=8 \
-  --master_addr=$master_addr \
-  --master_port=$master_port \
   train/pretrain_unified_navit.py \
   --dataset_config_file ./data/configs/aes.yaml \
   --layer_module Qwen2MoTDecoderLayer \

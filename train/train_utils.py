@@ -145,16 +145,6 @@ class TrainingVisualizer:
         plt.savefig(save_path, dpi=150, bbox_inches='tight')
         plt.close()
         
-        # log to wandb
-        if self.log_to_wandb:
-            try:
-                wandb.log({
-                    f"training_visualization/{save_name}": wandb.Image(save_path),
-                    "step": step
-                })
-            except Exception as e:
-                print(f"Failed to log to wandb: {e}")
-        
         return save_path
     
     def visualize_training_predictions(
@@ -223,11 +213,22 @@ class TrainingVisualizer:
                 step=step, save_name="target_pred",
                 timesteps=[timesteps[i] for i in range(len(timesteps)) if target[i]],
             )
-            self.create_image_grid(
+            raw_save_path = self.create_image_grid(
                 raw_images,
                 step=step,
                 save_name="raw",
             )
+        
+            # log to wandb
+            if self.log_to_wandb:
+                try:
+                    wandb.log({
+                        f"training_vis/target_pred": wandb.Image(save_path),
+                        f"training_vis/raw": wandb.Image(raw_save_path),
+                        "step": step
+                    })
+                except Exception as e:
+                    print(f"Failed to log to wandb: {e}")
         else:
             pass
             # # only show predicted images
@@ -279,15 +280,6 @@ class TrainingVisualizer:
         save_path = os.path.join(self.save_dir, f"step_{step}_{save_name}.png")
         plt.savefig(save_path, dpi=150, bbox_inches='tight')
         plt.close()
-        
-        if self.log_to_wandb:
-            try:
-                wandb.log({
-                    f"training_visualization/{save_name}": wandb.Image(save_path),
-                    "step": step
-                })
-            except Exception as e:
-                print(f"Failed to log to wandb: {e}")
                 
         return save_path
 
