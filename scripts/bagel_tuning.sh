@@ -6,7 +6,7 @@ node_rank=${ARNOLD_ID}
 master_addr=${ARNOLD_WORKER_0_HOST}
 master_port=(${ARNOLD_WORKER_0_PORT//,/ })
 
-exp_name=from_bagel_7b_fix
+exp_name=from_bagel_7b_edit0.8_fix
 output_path=./results/$exp_name
 ckpt_path=$output_path/checkpoints
 
@@ -34,7 +34,7 @@ torchrun \
   --expected_num_tokens 16384 \
   --max_num_tokens 36864 \
   --max_num_tokens_per_sample 16384 \
-  --wandb_runid 105 \
+  --wandb_runid 106 \
   --save_every 2000 \
   --wandb_name $exp_name \
   --results_dir $output_path \

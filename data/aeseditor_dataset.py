@@ -7,7 +7,7 @@ import traceback
 from PIL import Image, ImageFile, PngImagePlugin
 
 from .data_utils import pil_img2rgb
-from .distributed_iterable_dataset import DistributedIterableDataset
+from .interleave_datasets.interleave_t2i_dataset import InterleavedBaseIterableDataset
 
 
 Image.MAX_IMAGE_PIXELS = 200000000
@@ -17,7 +17,7 @@ MegaByte = 2 ** 20
 PngImagePlugin.MAX_TEXT_CHUNK = MaximumDecompressedSize * MegaByte
 
 
-class AesEditorIterableDataset(DistributedIterableDataset):
+class AesEditorIterableDataset(InterleavedBaseIterableDataset):
     def __init__(
         self, dataset_name, transform, vit_transform, tokenizer, 
         jsonl_path_list, data_dir_list, num_used_data, 
@@ -83,11 +83,6 @@ class AesEditorIterableDataset(DistributedIterableDataset):
         while True:
             data_paths_per_worker_ = data_paths_per_worker[row_start_id:]
             for row_idx, (data, base_dir) in enumerate(data_paths_per_worker_, start=row_start_id):
-                num_tokens = 0
-                image_tensor_list = []
-                text_ids_list = []
-                sequence_plan = []
-
                 try:
                     data_item = json.loads(data)
                     
@@ -107,64 +102,41 @@ class AesEditorIterableDataset(DistributedIterableDataset):
                     print(f"Error processing item: {e}")
                     continue
 
-                # Add input image (VIT transform for condition)
-                vit_image_tensor = self.vit_transform(raw_image)
-                image_tensor_list.append(vit_image_tensor)
-                height, width = vit_image_tensor.shape[1:]
-                num_tokens += width * height // vit_transform_stride ** 2
-                
-                sequence_plan.append({
-                    'type': 'vit_image',
-                    'enable_cfg': 1,
-                    'loss': 0,
-                    'special_token_loss': 0,
-                    'special_token_label': None,
-                })
+                # Add input image, VAE token and VIT token
+                data = self._init_data()
+                data = self._add_image(
+                    data,
+                    raw_image,
+                    need_loss=False,
+                    need_vae=True,
+                    need_vit=True,
+                )
 
                 # Add instruction text
-                text_ids = self.tokenizer.encode(instruction)
-                if len(text_ids) > 0:
-                    text_ids_list.append(text_ids)
-                    num_tokens += len(text_ids)
-                    sequence_plan.append({
-                        'type': 'text',
-                        'enable_cfg': 0,
-                        'loss': 0,
-                        'special_token_loss': 0,
-                        'special_token_label': None,
-                    })
+                data = self._add_text(data, instruction, need_loss=False)
 
                 # Add target image (VAE transform for generation)
-                target_image_tensor = self.transform(target_image)
-                image_tensor_list.append(target_image_tensor)
-                height, width = target_image_tensor.shape[1:]
-                num_tokens += width * height // transform_stride ** 2
-                
-                sequence_plan.append({
-                    'type': 'vae_image',
-                    'enable_cfg': 0,
-                    'loss': 1,
-                    'special_token_loss': 0,
-                    'special_token_label': None,
-                })
+                data = self._add_image(
+                    data,
+                    target_image,
+                    need_loss=True,
+                    need_vae=False,
+                    need_vit=False,
+                )
 
                 # Verify we have loss
-                has_loss = [item['loss'] for item in sequence_plan]
+                has_loss = [item['loss'] for item in data['sequence_plan']]
                 if sum(has_loss) == 0:
                     print(f'No loss defined, skipped.')
                     continue
 
-                yield dict(
-                    image_tensor_list=image_tensor_list,
-                    text_ids_list=text_ids_list,
-                    sequence_plan=sequence_plan,
-                    num_tokens=num_tokens,
-                    data_indexes={
-                        "data_indexes": row_idx,
-                        "worker_id": worker_id,
-                        "dataset_name": self.dataset_name,
-                    }
-                )
+                data['data_indexes'] = {
+                    "data_indexes": row_idx,
+                    "worker_id": worker_id,
+                    "dataset_name": self.dataset_name,
+                }
+
+                yield data
 
             row_start_id = 0
             print(f"{self.dataset_name} repeat in rank-{self.local_rank} worker-{worker_id}")

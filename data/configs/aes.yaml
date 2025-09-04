@@ -14,7 +14,7 @@ vlm_sft:
   shuffle_seed: 0
   num_used_data:
   - 409000
-  weight: 0.5
+  weight: 0.2
 
 aes_edit:
   dataset_names:
@@ -32,4 +32,4 @@ aes_edit:
   shuffle_seed: 0
   num_used_data:
   - 99882
-  weight: 0.5
+  weight: 0.8
