@@ -5,6 +5,7 @@ import copy
 from typing import List, Tuple, Optional
 
 import torch
+import torch.distributed as dist
 import torch.nn.functional as F
 from torch import nn
 from torch.nn.attention.flex_attention import create_block_mask
@@ -121,6 +122,8 @@ class Bagel(PreTrainedModel):
         packed_vae_token_indexes: Optional[torch.LongTensor] = None,
         packed_timesteps: Optional[torch.LongTensor] = None,
         mse_loss_indexes: Optional[torch.BoolTensor] = None,
+        # for visualization
+        return_predictions: bool = False,
     ) -> torch.Tensor:
         """
         Args:
@@ -214,18 +217,32 @@ class Bagel(PreTrainedModel):
         )
 
         mse = None
+        packed_mse_preds = None
         if self.config.visual_gen:
             packed_mse_preds = self.llm2vae(last_hidden_state[mse_loss_indexes])
             target = noise - packed_latent_clean # NOTE: v_t=dx_t/dt=x_1-x_0, pointing from data to noise
             has_mse = packed_timesteps > 0
             mse = (packed_mse_preds - target[has_mse]) ** 2
+            
+            if dist.get_rank() == 0 and torch.all(packed_timesteps > 0):
+                # if edit task, there should exist t <=0
+                print(f"[NOTICE] packed_timesteps is all greater than 0.")
 
         ce = None
         if ce_loss_indexes is not None:
             packed_ce_preds = self.language_model.lm_head(last_hidden_state[ce_loss_indexes])
             ce = F.cross_entropy(packed_ce_preds, packed_label_ids, reduction="none")
 
-        return dict(mse=mse, ce=ce)
+        pred_vis = {} # visualization predictions for debugging
+        if return_predictions and packed_mse_preds is not None:
+            # convert predicted velocity back to latent space
+            # v_t = dx_t/dt = x_1 - x_0，所以 predicted_x0 = x_t - v_t * timestep
+            predicted_latents = packed_latent_clean[has_mse] - packed_mse_preds * packed_timesteps[has_mse][:, None]
+            pred_vis['predicted_latents'] = predicted_latents.detach()
+            pred_vis['all_vae_latent_shapes'] = patchified_vae_latent_shapes
+            pred_vis['all_packed_timesteps'] = packed_timesteps.detach()
+            
+        return dict(mse=mse, ce=ce), pred_vis
 
 
     def prepare_prompts(self, curr_kvlens, curr_rope, prompts, tokenizer, new_token_ids):

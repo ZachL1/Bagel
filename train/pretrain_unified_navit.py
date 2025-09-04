@@ -33,7 +33,7 @@ from modeling.bagel import (
     BagelConfig, Bagel, Qwen2Config, Qwen2ForCausalLM, SiglipVisionConfig, SiglipVisionModel
 )
 from modeling.qwen2 import Qwen2Tokenizer
-from train.train_utils import create_logger, get_latest_ckpt
+from train.train_utils import create_logger, get_latest_ckpt, TrainingVisualizer
 from train.fsdp_utils import (
     FSDPCheckpoint, FSDPConfig, grad_checkpoint_check_fn, fsdp_wrapper, 
     fsdp_ema_setup, fsdp_ema_update,
@@ -579,6 +579,18 @@ def main():
     fsdp_model.train()
     ema_model.eval()
 
+    # Initialize visualizer to monitor training predictions:
+    visualizer = None
+    if dist.get_rank() == 0 and training_args.visual_gen:
+        visualizer = TrainingVisualizer(
+            vae_model=vae_model,
+            latent_patch_size=config.latent_patch_size,
+            latent_channel=config.vae_config.z_channels,
+            save_dir=os.path.join(training_args.results_dir, "training_visualizations"),
+            log_to_wandb=True
+        )
+        logger.info("Training visualizer initialized")
+
     # train loop
     start_time = time()
     logger.info(f"Training for {training_args.total_steps} steps, starting at {train_step}...")
@@ -590,7 +602,9 @@ def main():
             if training_args.visual_gen:
                 with torch.no_grad():
                     data['padded_latent'] = vae_model.encode(data.pop('padded_images'))
-            loss_dict = fsdp_model(**data)
+                if curr_step % (training_args.log_every * 10) == 0:
+                    data['return_predictions'] = True
+            loss_dict, pred_vis = fsdp_model(**data)
 
         loss = 0
         ce = loss_dict["ce"]
@@ -666,6 +680,17 @@ def main():
 
             if dist.get_rank() == 0:
                 wandb.log(wandb_log, step=curr_step)
+                
+                # Visualize model predictions:
+                if visualizer is not None and pred_vis:
+                    viz_path = visualizer.visualize_training_predictions(
+                        data.get('padded_latent'), pred_vis, step=curr_step, max_samples=4
+                    )
+                    if viz_path:
+                        logger.info(f"Training visualization saved to: {viz_path}")
+                    else:
+                        logger.info("No visualization generated (no valid predictions)")
+                        
             start_time = time()
 
         if data_status is None:
