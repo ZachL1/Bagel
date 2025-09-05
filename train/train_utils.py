@@ -225,8 +225,7 @@ class TrainingVisualizer:
                     wandb.log({
                         f"training_vis/target_pred": wandb.Image(save_path),
                         f"training_vis/raw": wandb.Image(raw_save_path),
-                        "step": step
-                    })
+                        }, step=step)
                 except Exception as e:
                     print(f"Failed to log to wandb: {e}")
         else:

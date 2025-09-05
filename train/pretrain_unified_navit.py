@@ -602,7 +602,7 @@ def main():
             if training_args.visual_gen:
                 with torch.no_grad():
                     data['padded_latent'] = vae_model.encode(data.pop('padded_images'))
-                if curr_step % (training_args.log_every * 10) == 0:
+                if curr_step % (training_args.log_every * 20) == 0:
                     data['return_predictions'] = True
             loss_dict, pred_vis = fsdp_model(**data)
 

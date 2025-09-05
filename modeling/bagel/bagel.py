@@ -195,8 +195,8 @@ class Bagel(PreTrainedModel):
             packed_latent = (1 - packed_timesteps[:, None]) * packed_latent_clean + packed_timesteps[:, None] * noise
             packed_timestep_embeds = self.time_embedder(packed_timesteps)
             latent_token_pos_emb = self.latent_pos_embed(packed_latent_position_ids)
-            packed_latent = self.vae2llm(packed_latent) + packed_timestep_embeds + latent_token_pos_emb
-            packed_sequence[packed_vae_token_indexes] = packed_latent
+            packed_latent_llm = self.vae2llm(packed_latent) + packed_timestep_embeds + latent_token_pos_emb
+            packed_sequence[packed_vae_token_indexes] = packed_latent_llm
 
         extra_inputs = {}
         if self.use_moe:
@@ -226,6 +226,7 @@ class Bagel(PreTrainedModel):
             
             # if dist.get_rank() == 0 and torch.all(packed_timesteps > 0):
             #     # if edit task, there should exist t <=0
+            #     # if use cfg, maybe all t > 0
             #     print(f"[NOTICE] packed_timesteps is all greater than 0.")
 
         ce = None
@@ -237,7 +238,7 @@ class Bagel(PreTrainedModel):
         if return_predictions and packed_mse_preds is not None:
             # convert predicted velocity back to latent space
             # v_t = dx_t/dt = x_1 - x_0，所以 predicted_x0 = x_t - v_t * timestep
-            predicted_latents = packed_latent_clean[has_mse] - packed_mse_preds * packed_timesteps[has_mse][:, None]
+            predicted_latents = packed_latent[has_mse] - packed_mse_preds * packed_timesteps[has_mse][:, None]
             pred_vis['predicted_latents'] = predicted_latents.detach()
             pred_vis['all_vae_latent_shapes'] = patchified_vae_latent_shapes
             pred_vis['all_packed_timesteps'] = packed_timesteps.detach()
