@@ -102,7 +102,7 @@ def run_inference(args):
             print(result)
         except Exception as e:
             print(f"Error processing item {i}: {e}")
-            results.update({
+            result.update({
                 "error": str(e),
                 "output_image": None
             })
