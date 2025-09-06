@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Dict, Any, List
 from PIL import Image
 from tqdm import tqdm
+import random
 
 # Import shared utilities
 from utils import set_seed, create_inferencer, DEFAULT_EDIT_INFERENCE_PARAMS
@@ -25,6 +26,8 @@ def load_edit_data(data_path: str) -> List[Dict[str, Any]]:
         for line in f:
             if line.strip():
                 data.append(json.loads(line.strip()))
+    random.seed(42)
+    random.shuffle(data)
     return data
 
 
