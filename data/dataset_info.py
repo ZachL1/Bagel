@@ -46,8 +46,13 @@ DATASET_INFO = {
     'aes_edit': {
         'aeseditor': {
 			'data_dir': 'data/sft_data/AesEditor',
-			'jsonl_path': 'data/sft_data/AesEditor/data_json/train.jsonl',
+			'jsonl_path': 'data/sft_data/AesEditor/data_json/aes_edit_train.jsonl',
 			'num_total_samples': 99882
+		},
+        'aeseditor_test': {
+			'data_dir': 'data/sft_data/AesEditor',
+			'jsonl_path': 'data/sft_data/AesEditor/data_json/aes_edit_test.jsonl',
+			'num_total_samples': 12235
 		},
     },
 }
