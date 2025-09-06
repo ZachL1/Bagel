@@ -35,7 +35,7 @@ WORKDIR /workspace
 RUN git clone https://github.com/ZachL1/Bagel.git
 
 # Upgrade pip and install Python dependencies
-RUN pip install --upgrade pip setuptools wheel
+RUN pip install --upgrade pip setuptools wheel nvitop
 RUN pip install -r Bagel/requirements.txt
 
 # RUN pip install torch==2.7.0 torchvision torchaudio==2.7.0  --index-url https://download.pytorch.org/whl/cu126 --force-reinstall
