@@ -8,6 +8,7 @@ import torch
 from PIL import Image
 from tqdm import tqdm
 
+import concurrent.futures
 
 bench_json = "data/sft_data/AesEditor/data_json/aes_edit_test.jsonl"
 data_dir = "data/sft_data/AesEditor/"
@@ -81,23 +82,8 @@ def tensor_from_image(img):
     img_tensor = torch.from_numpy(img).float().permute(2, 0, 1).unsqueeze(0) / 255.0
     return img_tensor * 2 - 1
 
-
-def main():
-    # Initialize LPIPS
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    lpips_fn = lpips.LPIPS(net='alex').to(device)
-    
-    # Storage for metrics grouped by source
-    source_metrics = {}
-    
-    processed_count = 0
-    skipped_count = 0
-    
-    # Read and process each line in the JSONL file
-    with open(bench_json, 'r') as f:
-        bench_data = f.readlines()
-    
-    for line_num, line in enumerate(tqdm(bench_data)):
+def main_task(lines, source_metrics, worker_id):
+    for line in tqdm(lines, desc=f"Processing {worker_id}: "):
         item = json.loads(line.strip())
         image_name = item["target"]
         source = item.get("source", "unknown")  # Get source field, default to "unknown"
@@ -117,7 +103,6 @@ def main():
         result_path = os.path.join(result_dir, image_name.rsplit(".", 1)[0] + ".png")
         if not os.path.exists(result_path):
             source_metrics[source]['skipped_count'] += 1
-            skipped_count += 1
             continue
         
         # Load images
@@ -146,11 +131,29 @@ def main():
         source_metrics[source]['lpips_scores'].append(lpips_score)
         
         source_metrics[source]['processed_count'] += 1
-        processed_count += 1
         
         # print(f"Processed {processed_count:3d}: [{source}] {image_name} - "
         #       f"PSNR: {psnr:.6f}, SSIM: {ssim_score:.6f}, LPIPS: {lpips_score:.6f}")
-        
+
+
+if __name__ == "__main__":
+    # Initialize LPIPS
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    lpips_fn = lpips.LPIPS(net='alex').to(device)
+    
+    # Storage for metrics grouped by source
+    source_metrics = {}
+    
+    # Read and process each line in the JSONL file
+    with open(bench_json, 'r') as f:
+        bench_data = f.readlines()
+    
+    num_workers = 10
+    with concurrent.futures.ThreadPoolExecutor(max_workers=num_workers) as executor:
+        futures = [executor.submit(main_task, bench_data[i::num_workers], source_metrics, i) for i in range(num_workers)]
+
+        for future in tqdm(concurrent.futures.as_completed(futures), total=len(futures), desc="Working"):
+            future.result()
     
     # Calculate and display results grouped by source
     print("\n" + "="*80)
@@ -188,8 +191,8 @@ def main():
         print("\n" + "="*80)
         print("OVERALL EVALUATION RESULTS")
         print("="*80)
-        print(f"Total processed images: {processed_count}")
-        print(f"Total skipped images: {skipped_count}")
+        print(f"Total processed images: {sum(metrics['processed_count'] for metrics in source_metrics.values())}")
+        print(f"Total skipped images: {sum(metrics['skipped_count'] for metrics in source_metrics.values())}")
         print(f"Overall Average PSNR: {np.mean(overall_psnr):.6f} dB")
         print(f"Overall Average SSIM: {np.mean(overall_ssim):.6f}")
         print(f"Overall Average LPIPS: {np.mean(overall_lpips):.6f}")
@@ -197,6 +200,3 @@ def main():
     else:
         print("\nNo images were successfully processed!")
 
-
-if __name__ == "__main__":
-    main()
