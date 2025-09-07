@@ -9,6 +9,7 @@ Inference script for AesEditor editing data
 import os
 import json
 import argparse
+import asyncio
 from pathlib import Path
 from typing import Dict, Any, List
 from PIL import Image
@@ -16,7 +17,7 @@ from tqdm import tqdm
 import random
 
 # Import shared utilities
-from utils import set_seed, create_inferencer, DEFAULT_EDIT_INFERENCE_PARAMS
+from utils import set_seed, create_inferencer, DEFAULT_EDIT_INFERENCE_PARAMS, async_process_batch
 
 
 def load_edit_data(data_path: str) -> List[Dict[str, Any]]:
@@ -69,12 +70,97 @@ def process_edit_request(item: Dict[str, Any], base_image_dir: str, inferencer) 
     return item
 
 
-def run_inference(args):
-    """Main inference loop"""
-    # Set seed for reproducibility
+def process_edit_wrapper(task_data):
+    """async processing wrapper function"""
+    try:
+        inferencer = task_data["inferencer"]
+        item = task_data["item"]
+        base_image_dir = task_data["base_image_dir"]
+        
+        result = process_edit_request(item, base_image_dir, inferencer)
+        result["success"] = True
+        print(result)
+        return result
+    except Exception as e:
+        print(f"[ERROR] processing item {item.get('raw', '')}: {e}")
+        return {
+            "raw": item.get("raw", ""),
+            "instruction": item.get("instruction", ""),
+            "error": str(e),
+            "success": False
+        }
+
+
+async def run_async_inference(args):
+    """async inference main function"""
     set_seed(args.seed)
     
-    # Load model and create inferencer
+    print("Loading model...")
+    inferencer = create_inferencer(args.model_path, args.llm_path, args.max_mem_per_gpu)
+    
+    print("Loading editing data...")
+    edit_data = load_edit_data(args.edit_data_path)
+    print(f"Loaded {len(edit_data)} editing requests")
+    
+    if args.max_samples > 0:
+        edit_data = edit_data[:args.max_samples]
+    
+    # Create output directory
+    output_dir = Path(args.output_dir) / args.tag
+    output_dir.mkdir(parents=True, exist_ok=True)
+    image_output_dir = output_dir / "edited_images"
+    image_output_dir.mkdir(parents=True, exist_ok=True)
+    
+    # prepare tasks
+    tasks = []
+    for item in edit_data:
+        item["output_image"] = os.path.join(image_output_dir, item["target"].rsplit(".", 1)[0] + ".png")
+        os.makedirs(os.path.dirname(item["output_image"]), exist_ok=True)
+        item["raw"] = os.path.join(args.base_image_dir, item["raw"])
+        item["target"] = os.path.join(args.base_image_dir, item["target"])
+
+        if os.path.exists(item["output_image"]):
+            continue
+
+        tasks.append({
+            "inferencer": inferencer,
+            "item": item,
+            "base_image_dir": args.base_image_dir
+        })
+    
+    # async batch processing
+    print(f"Processing {len(tasks)} editing requests...")
+    results = await async_process_batch(tasks, process_edit_wrapper, args.max_workers)
+    
+    # save results
+    success_count = sum(1 for r in results if r.get("success", False))
+    
+    # remove success flag
+    for result in results:
+        result.pop("success", None)
+    
+    # save JSON results
+    output_file = output_dir / f"edit_results_{args.tag}.json"
+    with open(output_file, 'w', encoding='utf-8') as f:
+        json.dump(results, f, ensure_ascii=False, indent=2)
+    
+    print(f"Processing completed. {success_count}/{len(results)} successful. Results saved to {output_file}")
+
+
+def run_inference(args):
+    """run in sync or async mode"""
+    if args.async_mode:
+        print(f"🚀 Running in ASYNC mode with {args.max_workers} workers")
+        asyncio.run(run_async_inference(args))
+    else:
+        print("Running in SYNC mode")
+        run_sync_inference(args)
+
+
+def run_sync_inference(args):
+    """sync inference (original version)"""
+    set_seed(args.seed)
+    
     print("Loading model...")
     inferencer = create_inferencer(args.model_path, args.llm_path, args.max_mem_per_gpu)
     
@@ -147,6 +233,10 @@ def main():
                         help="Random seed for reproducibility")
     parser.add_argument("--use_ema", type=bool, default=True,
                         help="Use EMA weights")
+    parser.add_argument("--async_mode", action="store_true", default=False,
+                        help="Use async mode for faster processing")
+    parser.add_argument("--max_workers", type=int, default=2,
+                        help="Maximum number of concurrent workers for async processing")
     
     args = parser.parse_args()
     run_inference(args)
