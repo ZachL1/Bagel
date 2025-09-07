@@ -6,6 +6,7 @@ import lpips
 import os
 import torch
 from PIL import Image
+from tqdm import tqdm
 
 
 bench_json = "data/sft_data/AesEditor/data_json/aes_edit_test.jsonl"
@@ -94,69 +95,62 @@ def main():
     
     # Read and process each line in the JSONL file
     with open(bench_json, 'r') as f:
-        for line_num, line in enumerate(f, 1):
-            try:
-                item = json.loads(line.strip())
-                image_name = item["target"]
-                source = item.get("source", "unknown")  # Get source field, default to "unknown"
-                
-                # Initialize source group if not exists
-                if source not in source_metrics:
-                    source_metrics[source] = {
-                        'psnr_scores': [],
-                        'ssim_scores': [],
-                        'lpips_scores': [],
-                        'processed_count': 0,
-                        'skipped_count': 0
-                    }
-                
-                # Construct image paths
-                target_path = os.path.join(data_dir, image_name)
-                result_path = os.path.join(result_dir, image_name.rsplit(".", 1)[0] + ".png")
-                if not os.path.exists(result_path):
-                    source_metrics[source]['skipped_count'] += 1
-                    skipped_count += 1
-                    continue
-                
-                # Load images
-                target_img = load_image(target_path)
-                result_img = load_image(result_path)
-                
-                # Ensure images have the same dimensions
-                if target_img.shape != result_img.shape:
-                    # resize target to result
-                    target_img = cv2.resize(target_img, (result_img.shape[1], result_img.shape[0]), interpolation=cv2.INTER_CUBIC)
-                
-                # Calculate PSNR
-                psnr = calculate_psnr(target_img, result_img)
-                source_metrics[source]['psnr_scores'].append(psnr)
-                
-                # Calculate SSIM
-                ssim_score = calculate_ssim(target_img, result_img)
-                source_metrics[source]['ssim_scores'].append(ssim_score)
-                
-                # Calculate LPIPS
-                target_tensor = tensor_from_image(target_img).to(device)
-                result_tensor = tensor_from_image(result_img).to(device)
-                
-                with torch.no_grad():
-                    lpips_score = lpips_fn(target_tensor, result_tensor).squeeze().item()
-                source_metrics[source]['lpips_scores'].append(lpips_score)
-                
-                source_metrics[source]['processed_count'] += 1
-                processed_count += 1
-                
-                # print(f"Processed {processed_count:3d}: [{source}] {image_name} - "
-                #       f"PSNR: {psnr:.6f}, SSIM: {ssim_score:.6f}, LPIPS: {lpips_score:.6f}")
-                
-            except json.JSONDecodeError:
-                print(f"Warning: Invalid JSON at line {line_num}")
-                skipped_count += 1
-                continue
-            except Exception as e:
-                print(f"Error processing line {line_num}: {str(e)}")
-                skipped_count += 1
-                continue
+        bench_data = f.readlines()
+    
+    for line_num, line in enumerate(tqdm(bench_data)):
+        item = json.loads(line.strip())
+        image_name = item["target"]
+        source = item.get("source", "unknown")  # Get source field, default to "unknown"
+        
+        # Initialize source group if not exists
+        if source not in source_metrics:
+            source_metrics[source] = {
+                'psnr_scores': [],
+                'ssim_scores': [],
+                'lpips_scores': [],
+                'processed_count': 0,
+                'skipped_count': 0
+            }
+        
+        # Construct image paths
+        target_path = os.path.join(data_dir, image_name)
+        result_path = os.path.join(result_dir, image_name.rsplit(".", 1)[0] + ".png")
+        if not os.path.exists(result_path):
+            source_metrics[source]['skipped_count'] += 1
+            skipped_count += 1
+            continue
+        
+        # Load images
+        target_img = load_image(target_path)
+        result_img = load_image(result_path)
+        
+        # Ensure images have the same dimensions
+        if target_img.shape != result_img.shape:
+            # resize target to result
+            target_img = cv2.resize(target_img, (result_img.shape[1], result_img.shape[0]), interpolation=cv2.INTER_CUBIC)
+        
+        # Calculate PSNR
+        psnr = calculate_psnr(target_img, result_img)
+        source_metrics[source]['psnr_scores'].append(psnr)
+        
+        # Calculate SSIM
+        ssim_score = calculate_ssim(target_img, result_img)
+        source_metrics[source]['ssim_scores'].append(ssim_score)
+        
+        # Calculate LPIPS
+        target_tensor = tensor_from_image(target_img).to(device)
+        result_tensor = tensor_from_image(result_img).to(device)
+        
+        with torch.no_grad():
+            lpips_score = lpips_fn(target_tensor, result_tensor).squeeze().item()
+        source_metrics[source]['lpips_scores'].append(lpips_score)
+        
+        source_metrics[source]['processed_count'] += 1
+        processed_count += 1
+        
+        # print(f"Processed {processed_count:3d}: [{source}] {image_name} - "
+        #       f"PSNR: {psnr:.6f}, SSIM: {ssim_score:.6f}, LPIPS: {lpips_score:.6f}")
+        
     
     # Calculate and display results grouped by source
     print("\n" + "="*80)
