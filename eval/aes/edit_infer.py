@@ -98,10 +98,16 @@ def run_inference(args):
             break
             
         try:
+            item["output_image"] = os.path.join(image_output_dir, item["target"].rsplit(".", 1)[0] + ".png")
+            os.makedirs(os.path.dirname(item["output_image"]), exist_ok=True)
+            
             item["raw"] = os.path.join(args.base_image_dir, item["raw"])
             item["target"] = os.path.join(args.base_image_dir, item["target"])
-            item["output_image"] = os.path.join(image_output_dir, f"edit_{i:06d}.png")
-            result = process_edit_request(item, args.base_image_dir, inferencer)
+
+            if os.path.exists(item["output_image"]):
+                result = item
+            else:
+                result = process_edit_request(item, args.base_image_dir, inferencer)
             print(result)
         except Exception as e:
             print(f"Error processing item {i}: {e}")
