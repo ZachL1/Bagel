@@ -16,6 +16,10 @@ from tqdm import tqdm
 import random
 import queue
 from concurrent.futures import ThreadPoolExecutor, as_completed
+import torch
+import numpy as np
+
+from torch.utils.data import Dataset, DataLoader
 
 # Import shared utilities
 from utils import set_seed, create_inferencer, DEFAULT_EDIT_INFERENCE_PARAMS
@@ -98,21 +102,33 @@ def load_edit_data(data_path: str, data_split: str) -> List[Dict[str, Any]]:
     return used_data
 
 
+class EditDataset(Dataset):
+    def __init__(self, data_path: str, data_split: str, image_output_dir: str, base_image_dir: str):
+        self.data = load_edit_data(data_path, data_split)
+        self.image_output_dir = image_output_dir
+        self.base_image_dir = base_image_dir
+    
+    def __len__(self):
+        return len(self.data)
+    
+    def __getitem__(self, idx):
+        item = self.data[idx]
+        item["output_image"] = os.path.join(self.image_output_dir, item["target"].rsplit(".", 1)[0] + ".png")
+        os.makedirs(os.path.dirname(item["output_image"]), exist_ok=True)
+        
+        item["raw"] = os.path.join(self.base_image_dir, item["raw"])
+        item["target"] = os.path.join(self.base_image_dir, item["target"])
+        raw_image = Image.open(item["raw"]).convert('RGB')
+        item["raw_image"] = raw_image
+
+        return item
+
 def process_edit_request(item: Dict[str, Any], inferencer, image_saver=None) -> Dict[str, Any]:
     """Process a single image editing request"""
     image_path = item.get("raw", "")
     instruction = item.get("instruction", "")
     instructions = item.get("instructions", "")
-    
-    try:
-        image = Image.open(image_path).convert('RGB')
-    except Exception as e:
-        print(f"Error loading image {image_path}: {e}")
-        item.update({
-            "error": f"Failed to load image: {e}",
-            "output_image": None
-        })
-        return item
+    image = item.pop("raw_image")
     
     # Use the instruction for editing
     edit_prompt = instruction if instruction else instructions
@@ -146,15 +162,16 @@ def run_inference(args):
     print("Loading model...")
     inferencer = create_inferencer(args.model_path, args.llm_path, args.max_mem_per_gpu)
     
-    # Load editing data
-    print("Loading editing data...")
-    edit_data = load_edit_data(args.edit_data_path, args.data_split)
-    
     # Create output directory
     output_dir = Path(args.output_dir) / args.tag
     output_dir.mkdir(parents=True, exist_ok=True)
+
+    # Load editing data
+    print("Loading editing data...")
     image_output_dir = output_dir / "edited_images"
     image_output_dir.mkdir(parents=True, exist_ok=True)
+    edit_dataset = EditDataset(args.edit_data_path, args.data_split, image_output_dir, args.base_image_dir)
+    edit_data = DataLoader(edit_dataset, batch_size=1, shuffle=False, num_workers=4, collate_fn=lambda x: x[0], pin_memory=True)
     
     # Process editing requests
     print("Processing editing requests...")
@@ -166,13 +183,8 @@ def run_inference(args):
             break
             
         try:
-            item["output_image"] = os.path.join(image_output_dir, item["target"].rsplit(".", 1)[0] + ".png")
-            os.makedirs(os.path.dirname(item["output_image"]), exist_ok=True)
-            
-            item["raw"] = os.path.join(args.base_image_dir, item["raw"])
-            item["target"] = os.path.join(args.base_image_dir, item["target"])
-
             if os.path.exists(item["output_image"]):
+                item.pop("raw_image")
                 result = item
             else:
                 result = process_edit_request(item, inferencer, image_saver)
