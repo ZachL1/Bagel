@@ -14,9 +14,61 @@ from typing import Dict, Any, List
 from PIL import Image
 from tqdm import tqdm
 import random
+import queue
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 # Import shared utilities
 from utils import set_seed, create_inferencer, DEFAULT_EDIT_INFERENCE_PARAMS
+
+
+class DualThreadImageSaver:
+    """
+    双线程图片保存器，使用两个工作线程交替保存图片以提高性能
+    """
+    def __init__(self, max_workers=2):
+        self.save_queue = queue.Queue()
+        self.executor = ThreadPoolExecutor(max_workers=max_workers, thread_name_prefix="ImageSaver")
+        self.active_futures = []
+        self.shutdown = False
+        
+    def save_image_async(self, image, save_path):
+        """异步保存图片到指定路径"""
+        if self.shutdown:
+            return
+            
+        # 提交保存任务到线程池
+        future = self.executor.submit(self._save_image_worker, image, save_path)
+        self.active_futures.append(future)
+        
+        # 清理已完成的任务
+        self.active_futures = [f for f in self.active_futures if not f.done()]
+        
+    def _save_image_worker(self, image, save_path):
+        """工作线程中的图片保存函数"""
+        try:
+            # 确保目录存在
+            os.makedirs(os.path.dirname(save_path), exist_ok=True)
+            # 保存图片
+            image.save(save_path)
+            return True
+        except Exception as e:
+            print(f"Error saving image to {save_path}: {e}")
+            return False
+    
+    def wait_for_completion(self):
+        """等待所有保存任务完成"""
+        for future in as_completed(self.active_futures):
+            try:
+                future.result()  # 获取结果，如果有异常会抛出
+            except Exception as e:
+                print(f"Image save task failed: {e}")
+        self.active_futures.clear()
+    
+    def shutdown_saver(self):
+        """关闭保存器并等待所有任务完成"""
+        self.shutdown = True
+        self.wait_for_completion()
+        self.executor.shutdown(wait=True)
 
 
 def load_edit_data(data_path: str, data_split: str) -> List[Dict[str, Any]]:
@@ -46,7 +98,7 @@ def load_edit_data(data_path: str, data_split: str) -> List[Dict[str, Any]]:
     return used_data
 
 
-def process_edit_request(item: Dict[str, Any], base_image_dir: str, inferencer) -> Dict[str, Any]:
+def process_edit_request(item: Dict[str, Any], inferencer, image_saver=None) -> Dict[str, Any]:
     """Process a single image editing request"""
     image_path = item.get("raw", "")
     instruction = item.get("instruction", "")
@@ -78,8 +130,12 @@ def process_edit_request(item: Dict[str, Any], base_image_dir: str, inferencer) 
     
     # Save the output image if generated
     if output_dict.get('image') is not None:
-        # save the image to the output directory
-        output_dict['image'].save(item["output_image"])
+        if image_saver is not None:
+            # 使用异步保存器保存图片
+            image_saver.save_image_async(output_dict['image'], item["output_image"])
+        else:
+            # 回退到同步保存
+            output_dict['image'].save(item["output_image"])
     
     return item
 
@@ -103,6 +159,7 @@ def run_inference(args):
     # Process editing requests
     print("Processing editing requests...")
     results = []
+    image_saver = DualThreadImageSaver(max_workers=2)
     
     for i, item in enumerate(tqdm(edit_data)):
         if args.max_samples > 0 and i >= args.max_samples:
@@ -118,7 +175,7 @@ def run_inference(args):
             if os.path.exists(item["output_image"]):
                 result = item
             else:
-                result = process_edit_request(item, args.base_image_dir, inferencer)
+                result = process_edit_request(item, inferencer, image_saver)
             print(result)
         except Exception as e:
             print(f"Error processing item {i}: {e}")
