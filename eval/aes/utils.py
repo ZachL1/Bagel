@@ -11,8 +11,6 @@ import yaml
 import random
 import numpy as np
 import torch
-import asyncio
-import concurrent.futures
 from accelerate import infer_auto_device_map, load_checkpoint_and_dispatch, init_empty_weights
 
 # Import model components
@@ -234,24 +232,6 @@ DEFAULT_GENERATION_INFERENCE_PARAMS = {
     "cfg_renorm_type": "global",
 }
 
-
-async def async_process_batch(tasks, process_func, max_workers=4):
-    loop = asyncio.get_event_loop()
-    
-    with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
-        futures = [loop.run_in_executor(executor, process_func, task) for task in tasks]
-        
-        try:
-            from tqdm import tqdm
-            results = []
-            for future in tqdm(asyncio.as_completed(futures), total=len(futures), desc="Processing"):
-                result = await future
-                results.append(result)
-            results = await asyncio.gather(*futures)
-        except ImportError:
-            results = await asyncio.gather(*futures)
-    
-    return results
 
 
 ########################################################

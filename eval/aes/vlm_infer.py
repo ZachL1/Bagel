@@ -9,14 +9,13 @@ Inference script for EAPD_release benchmark
 import os
 import json
 import argparse
-import asyncio
 from pathlib import Path
 from typing import Dict, Any, List
 from PIL import Image
 from tqdm import tqdm
 
 # Import shared utilities
-from utils import set_seed, create_inferencer, DEFAULT_VLM_INFERENCE_PARAMS, async_process_batch
+from utils import set_seed, create_inferencer, DEFAULT_VLM_INFERENCE_PARAMS
 
 
 def load_evaluation_data(data_path: str) -> Dict[str, Any]:
@@ -56,102 +55,7 @@ def process_aes_question(image_path: str, question_data: Dict[str, Any], task_ty
     return response
 
 
-def process_task_wrapper(task_data):
-    try:
-        inferencer = task_data["inferencer"]
-        image_path = task_data["image_path"]
-        question_data = task_data["question_data"]
-        task_type = task_data["task_type"]
-        
-        response = process_aes_question(image_path, question_data, task_type, inferencer)
-        result = {
-            "image_filename": task_data["image_filename"],
-            "question": question_data.get("Question", ""),
-            "options": question_data.get("Options", ""),
-            f"{task_type}_response": response,
-            "success": True
-        }
-        print(result)
-        return result
-    except Exception as e:
-        print(f"[ERROR] processing item {task_data['image_filename']}: {e}")
-        return {
-            "image_filename": task_data["image_filename"],
-            "error": str(e),
-            "success": False
-        }
-
-
-async def run_async_inference(args):
-    set_seed(args.seed)
-    
-    print("Loading model...")
-    inferencer = create_inferencer(args.model_path, args.llm_path, args.max_mem_per_gpu, args.use_ema)
-    
-    print("Loading evaluation data...")
-    eval_data = load_evaluation_data(args.eval_data_path)
-    
-    output_dir = Path(args.output_dir) / args.tag
-    output_dir.mkdir(parents=True, exist_ok=True)
-    
-    task_types = ["AesP", "AesE", "AesA1", "AesI"]
-    
-    for task_type in task_types:
-        print(f"Processing {task_type} task...")
-        
-        # prepare tasks
-        tasks = []
-        for image_filename, image_data in eval_data.items():
-            task_data_key = f"{task_type}_data"
-            if task_data_key not in image_data:
-                continue
-                
-            image_path = os.path.join(args.image_dir, image_filename)
-            if not os.path.exists(image_path):
-                continue
-            
-            tasks.append({
-                "inferencer": inferencer,
-                "image_path": image_path,
-                "question_data": image_data[task_data_key],
-                "task_type": task_type,
-                "image_filename": image_filename
-            })
-        
-        # async batch processing
-        print(f"Processing {len(tasks)} items...")
-        results_list = await async_process_batch(tasks, process_task_wrapper, args.max_workers)
-        
-        # organize results
-        results = {}
-        for result in results_list:
-            if result.get("success"):
-                image_filename = result.pop("image_filename")
-                result.pop("success")
-                results[image_filename] = result
-        
-        # save results
-        output_file = output_dir / f"{task_type}_results.json"
-        with open(output_file, 'w', encoding='utf-8') as f:
-            json.dump(results, f, ensure_ascii=False, indent=2)
-        
-        print(f"Saved {len(results)} results to {output_file}")
-    
-    print(f"All results saved to {output_dir}")
-
-
 def run_inference(args):
-    """run in sync or async mode"""
-    if args.async_mode:
-        print(f"🚀 Running in ASYNC mode with {args.max_workers} workers")
-        asyncio.run(run_async_inference(args))
-    else:
-        print("Running in SYNC mode")
-        run_sync_inference(args)
-
-
-def run_sync_inference(args):
-    """sync inference (original version)"""
     set_seed(args.seed)
     
     print("Loading model...")
@@ -218,10 +122,8 @@ def main():
                         help="Random seed for reproducibility")
     parser.add_argument("--use_ema", type=bool, default=True,
                         help="Use EMA weights")
-    parser.add_argument("--async_mode", action="store_true", default=False,
-                        help="Use async mode for faster processing")
-    parser.add_argument("--max_workers", type=int, default=2,
-                        help="Maximum number of concurrent workers for async processing")
+    parser.add_argument("--batch_size", type=int, default=2,
+                        help="Batch size for inference")
     
     args = parser.parse_args()
     run_inference(args)
