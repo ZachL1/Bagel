@@ -483,11 +483,19 @@ def main():
         num_shard=training_args.num_shard,
     )
     ema_model = deepcopy(model)
-    ema_model = fsdp_ema_setup(ema_model, fsdp_config)
-    fsdp_model = fsdp_wrapper(model, fsdp_config)
-    model, ema_model = FSDPCheckpoint.try_load_ckpt(
-        resume_from, logger, fsdp_model, ema_model, resume_from_ema=finetune_from_ema
-    )
+    if training_args.resume_from is not None:
+        ema_model = fsdp_ema_setup(ema_model, fsdp_config)
+        fsdp_model = fsdp_wrapper(model, fsdp_config)
+        model, ema_model = FSDPCheckpoint.try_load_ckpt(
+            resume_from, logger, fsdp_model, ema_model, resume_from_ema=finetune_from_ema
+        )
+    else:
+        model, ema_model = FSDPCheckpoint.try_load_ckpt(
+            resume_from, logger, model, ema_model, resume_from_ema=finetune_from_ema
+        )
+        ema_model = fsdp_ema_setup(ema_model, fsdp_config)
+        fsdp_model = fsdp_wrapper(model, fsdp_config)
+
     apply_activation_checkpointing(
         fsdp_model, 
         checkpoint_wrapper_fn=functools.partial(
@@ -707,6 +715,7 @@ def main():
                 gather_list = None
             dist.gather_object(data_status, gather_list, dst=0)
 
+            torch.cuda.empty_cache()
             FSDPCheckpoint.fsdp_save_ckpt(
                 ckpt_dir=training_args.checkpoint_dir, 
                 train_steps=curr_step, 
