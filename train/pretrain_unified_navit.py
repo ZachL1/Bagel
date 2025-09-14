@@ -713,7 +713,12 @@ def main():
                 gather_list = [None] * dist.get_world_size()
             else:
                 gather_list = None
-            dist.gather_object(data_status, gather_list, dst=0)
+                
+            try:
+                dist.gather_object(data_status, gather_list, dst=0)
+            except Exception as e:
+                logger.warning(f"Failed to gather data_status: {e}. Continuing with checkpoint save...")
+                gather_list = None
 
             torch.cuda.empty_cache()
             FSDPCheckpoint.fsdp_save_ckpt(
