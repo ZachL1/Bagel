@@ -720,6 +720,7 @@ def main():
                 logger.warning(f"Failed to gather data_status: {e}. Continuing with checkpoint save...")
                 gather_list = None
 
+            dist.barrier()
             torch.cuda.empty_cache()
             FSDPCheckpoint.fsdp_save_ckpt(
                 ckpt_dir=training_args.checkpoint_dir, 

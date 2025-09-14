@@ -5,6 +5,7 @@ from .interleave_datasets import UnifiedEditIterableDataset
 from .t2i_dataset import T2IIterableDataset
 from .vlm_dataset import SftJSONLIterableDataset
 from .aeseditor_dataset import AesEditorIterableDataset
+from .recon_dataset import ReconstructionDataset
 
 
 DATASET_REGISTRY = {
@@ -12,6 +13,7 @@ DATASET_REGISTRY = {
     'vlm_sft': SftJSONLIterableDataset,
     'unified_edit': UnifiedEditIterableDataset,
     'aes_edit': AesEditorIterableDataset,
+    'reconstruction': ReconstructionDataset,
 }
 
 
@@ -54,5 +56,12 @@ DATASET_INFO = {
 			'jsonl_path': 'data/sft_data/AesEditor/data_json/aes_edit_test.jsonl',
 			'num_total_samples': 12235
 		},
+    },
+    'reconstruction': {
+        'webdataset': {
+            'data_dir': './data/sft_data/text-to-image-2M/data_000000.tar', # path containing all tar files
+            'num_files': 1, # number of data units to be sharded across all ranks and workers
+            'cache_dir': '.cache', # cache directory for extracted images
+        },
     },
 }

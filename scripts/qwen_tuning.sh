@@ -6,7 +6,7 @@ node_rank=${ARNOLD_ID}
 master_addr=${ARNOLD_WORKER_0_HOST}
 master_port=(${ARNOLD_WORKER_0_PORT//,/ })
 
-exp_name=from_qwen25_7b_edit0.8_fix
+exp_name=from_qwen25_7b_edit_recon
 output_path=./results/$exp_name
 ckpt_path=$output_path/checkpoints
 
@@ -19,7 +19,7 @@ torchrun \
   --nnodes=1 \
   --nproc_per_node=8 \
   train/pretrain_unified_navit.py \
-  --dataset_config_file ./data/configs/aes.yaml \
+  --dataset_config_file ./data/configs/aes_recon.yaml \
   --layer_module Qwen2MoTDecoderLayer \
   --vae_path $vae_path \
   --vit_path $vit_path \
