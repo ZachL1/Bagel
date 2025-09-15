@@ -59,9 +59,8 @@ DATASET_INFO = {
     },
     'reconstruction': {
         'webdataset': {
-            'data_dir': './data/sft_data/text-to-image-2M/data_000000.tar', # path containing all tar files
+            'data_dir': './data/sft_data/text-to-image-2M/data_000000', # path containing all tar files
             'num_files': 1, # number of data units to be sharded across all ranks and workers
-            'cache_dir': '.cache', # cache directory for extracted images
         },
     },
 }

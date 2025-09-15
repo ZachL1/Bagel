@@ -83,7 +83,10 @@ class ReconstructionDataset(DistributedIterableDataset):
         for tar_path in data_dir_list:
             try:
                 # Extract tar file to cache directory
-                extract_dir = self._extract_tar_if_needed(tar_path)
+                if os.path.isdir(tar_path):
+                    extract_dir = tar_path
+                else:
+                    extract_dir = self._extract_tar_if_needed(tar_path)
                 
                 # Get all extracted image files
                 image_files = []

@@ -72,6 +72,7 @@ def run_inference(args):
     for task_type in task_types:
         print(f"Processing {task_type} task...")
         results = {}
+        output_file = output_dir / f"{task_type}_results.json"
         
         for image_filename, image_data in tqdm(eval_data.items()):
             task_data_key = f"{task_type}_data"
@@ -90,8 +91,10 @@ def run_inference(args):
                 "options": question_data.get("Options", ""),
                 f"{task_type}_response": response
             }
+            with open(output_file.with_suffix('.jsonl'), 'a', encoding='utf-8') as f:
+                json_line = json.dumps({image_filename: results[image_filename]}, ensure_ascii=False)
+                f.write(json_line + '\n')
         
-        output_file = output_dir / f"{task_type}_results.json"
         with open(output_file, 'w', encoding='utf-8') as f:
             json.dump(results, f, ensure_ascii=False, indent=2)
         
@@ -122,8 +125,6 @@ def main():
                         help="Random seed for reproducibility")
     parser.add_argument("--use_ema", type=bool, default=True,
                         help="Use EMA weights")
-    parser.add_argument("--batch_size", type=int, default=2,
-                        help="Batch size for inference")
     
     args = parser.parse_args()
     run_inference(args)

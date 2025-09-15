@@ -9,7 +9,7 @@ bench_json = "data/sft_data/AesEditor/data_json/aes_edit_test.jsonl"
 data_dir = "data/sft_data/AesEditor/"
 result_dirs = {
     "Bagel": "results/aes_eval/aes_edit_bagel/edited_images",
-    "Bagel_14k": "results/aes_eval/aes_edit_bagel_14/edited_images"
+    "Bagel_14k": "results/aes_eval/aes_edit_bagel_14/edited_images",
 }
 
 show_count = 50
@@ -49,13 +49,19 @@ if __name__ == "__main__":
         axes[0, 0].set_title("Raw Image")
         axes[0, 1].imshow(target_image)
         axes[0, 1].set_title("Target Image")
-        fig.suptitle(instruction, wrap=True)
         # axes[0, 1].set_title("Instruction")
         # axes[0, 1].text(0.5, 0.5, instruction, ha='center', va='center')
         for i, tag in enumerate(result_images.keys()):
             axes[1, i].imshow(result_images[tag])
             axes[1, i].set_title(f"{tag}")
+        
+        # Hide axes for all subplots
+        for i in range(cols):
+            axes[0, i].axis('off')
+            axes[1, i].axis('off')
 
+        fig.suptitle(instruction, wrap=True)
+        fig.tight_layout()
         save_path = os.path.join(save_dir, f"{sample_type}_{show_count:03d}.png")
         plt.savefig(save_path, dpi=150, bbox_inches='tight')
         plt.close()
