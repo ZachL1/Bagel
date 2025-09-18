@@ -35,7 +35,7 @@ def load_edit_data(data_path: str, data_split: str, max_samples: int, base_image
         if data_count.get(item["source"], 0) < max_samples:
             data_count[item["source"]] = data_count.get(item["source"], 0) + 1
 
-            item["output_image"] = os.path.join(image_output_dir, item["target"].rsplit(".", 1)[0] + ".png")
+            item["output_image"] = os.path.join(image_output_dir, item["target"])
             os.makedirs(os.path.dirname(item["output_image"]), exist_ok=True)
             item["raw"] = os.path.join(base_image_dir, item["raw"])
             item["target"] = os.path.join(base_image_dir, item["target"])
@@ -76,7 +76,9 @@ def process_edit_request(item: Dict[str, Any], base_image_dir: str, inferencer) 
     inference_hyper = DEFAULT_EDIT_INFERENCE_PARAMS.copy()
     
     # Perform editing
+    # print(f"Performing editing for {image_path} with prompt: {edit_prompt}")
     output_dict = inferencer(image=image, text=edit_prompt, think=False, **inference_hyper)
+    # print(f"Editing completed for {image_path}")
     
     item.update({
         "generated_text": output_dict.get('text', ''),
