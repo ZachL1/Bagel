@@ -11,7 +11,7 @@ import traceback
 from .data_utils import pil_img2rgb
 from .distributed_iterable_dataset import DistributedIterableDataset
 
-Image.MAX_IMAGE_PIXELS = 20_000_000
+Image.MAX_IMAGE_PIXELS = 200_000_000
 
 
 

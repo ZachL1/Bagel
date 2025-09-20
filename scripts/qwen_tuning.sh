@@ -1,6 +1,9 @@
 # Copyright 2025 Bytedance Ltd. and/or its affiliates.
 # SPDX-License-Identifier: Apache-2.0
 
+pip install -U wandb
+wandb login --relogin 2943b45498fccaa5f1941a06bcc942bf3bea49fb
+
 num_nodes=1
 node_rank=${ARNOLD_ID}
 master_addr=${ARNOLD_WORKER_0_HOST}
@@ -14,7 +17,7 @@ llm_path=./models/Qwen2.5-7B-Instruct
 vae_path=./models/BAGEL-7B-MoT/ae.safetensors
 vit_path=./models/siglip-so400m-14-980-flash-attn2-navit
 # Pre-training
-torchrun \
+/usr/local/bin/torchrun \
   --standalone \
   --nnodes=1 \
   --nproc_per_node=8 \
@@ -31,7 +34,8 @@ torchrun \
   --max_num_tokens_per_sample 16384 \
   --num_workers 1 \
   --num_shard 8 \
-  --wandb_runid 6 \
+  --wandb_runid 18 \
+  --save_every 2000 \
   --wandb_name $exp_name \
   --results_dir $output_path \
   --checkpoint_dir $ckpt_path \

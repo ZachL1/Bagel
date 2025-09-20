@@ -708,17 +708,18 @@ def main():
                 data_status[item['dataset_name']] = {}
             data_status[item['dataset_name']][item['worker_id']] = item['data_indexes']
 
-        if curr_step > 0 and curr_step % training_args.save_every == 0:
-            if dist.get_rank() == 0:
-                gather_list = [None] * dist.get_world_size()
-            else:
-                gather_list = None
+        if curr_step == 10 or curr_step > 0 and curr_step % training_args.save_every == 0:
+            # if dist.get_rank() == 0:
+            #     gather_list = [None] * dist.get_world_size()
+            # else:
+            #     gather_list = None
                 
-            try:
-                dist.gather_object(data_status, gather_list, dst=0)
-            except Exception as e:
-                logger.warning(f"Failed to gather data_status: {e}. Continuing with checkpoint save...")
-                gather_list = None
+            # try:
+            #     dist.gather_object(data_status, gather_list, dst=0)
+            # except Exception as e:
+            #     logger.warning(f"Failed to gather data_status: {e}. Continuing with checkpoint save...")
+            #     gather_list = None
+            gather_list = None
 
             dist.barrier()
             torch.cuda.empty_cache()
