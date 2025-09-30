@@ -165,7 +165,7 @@ class Bagel(PreTrainedModel):
         else:
             attention_mask = nested_attention_masks
 
-        if self.config.visual_und:
+        if self.config.visual_und and packed_vit_tokens is not None:
             cu_seqlens = torch.nn.functional.pad(torch.cumsum(vit_token_seqlens, dim=0), (1, 0))
             cu_seqlens = cu_seqlens.to(torch.int32)
             max_seqlen = torch.max(vit_token_seqlens).item()
@@ -190,6 +190,8 @@ class Bagel(PreTrainedModel):
             packed_latent_clean = torch.cat(packed_latent, dim=0)
 
             noise = torch.randn_like(packed_latent_clean)
+            # for raw image, packed_timesteps = -Inf, sigmoid = 0
+            # for target image, packed_timesteps = [0, T], sigmoid = [0, 1)
             packed_timesteps = torch.sigmoid(packed_timesteps)
             packed_timesteps = self.timestep_shift * packed_timesteps / (1 + (self.timestep_shift - 1) * packed_timesteps)
             packed_latent = (1 - packed_timesteps[:, None]) * packed_latent_clean + packed_timesteps[:, None] * noise
