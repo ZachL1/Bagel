@@ -1,5 +1,6 @@
 import os
 import sys
+import argparse
 from tqdm import tqdm
 from torch.utils.data import DataLoader
 import torch
@@ -14,10 +15,20 @@ from eval.aes.sota.custom_dataset import ImageEditDataset, collate_fn
 # decoder_config_dict = decoder_config.to_dict() # change to :
 # decoder_config_dict = decoder_config.to_dict() if isinstance(decoder_config, PretrainedConfig) else decoder_config
 
-json_path = "data/sft_data/AesEditor/data_json/aes_edit_test.jsonl"
-data_path = "data/sft_data/AesEditor"
-output_path = "results/aes_eval/aes_edit_flux/edited_images"
-max_samples = 10
+# json_path = "data/sft_data/AesEditor/data_json/aes_edit_test.jsonl"
+# data_path = "data/sft_data/AesEditor"
+# output_path = "results/aes_eval/aes_edit_flux/edited_images"
+# max_samples = 10
+
+
+# get from args
+parser = argparse.ArgumentParser()
+parser.add_argument("--json_path", type=str, default="data/sft_data/AesEditor/data_json/aes_edit_test.jsonl")
+parser.add_argument("--data_path", type=str, default="data/sft_data/AesEditor")
+parser.add_argument("--output_path", type=str, default="results/aes_eval/aes_edit_flux/edited_images")
+parser.add_argument("--max_samples", type=int, default=10)
+parser.add_argument("--data_split", type=str, default="1-0")
+args = parser.parse_args()
 
 def inference(pipe, batch, output_path):
     images = batch['image']
@@ -62,7 +73,7 @@ def inference(pipe, batch, output_path):
             os.makedirs(output_dir, exist_ok=True)
             image.save(output_file_path)
 
-dataset = ImageEditDataset(json_path, data_path, output_path, max_samples_per_source=max_samples)
+dataset = ImageEditDataset(args.json_path, args.data_path, args.output_path, max_samples_per_source=args.max_samples, data_split=args.data_split)
 dataloader = DataLoader(
     dataset, 
     batch_size=4, 
@@ -80,7 +91,7 @@ pipe = QwenImageEditPipeline.from_pretrained("./models/Qwen-Image-Edit",
 with tqdm(total=len(dataset), desc="Processing images", unit="img") as pbar:
     for batch_idx, batch in enumerate(dataloader):
         pbar.set_description(f"Processing batch {batch_idx + 1}/{len(dataloader)}")
-        inference(pipe, batch, output_path)
+        inference(pipe, batch, args.output_path)
         pbar.update(len(batch['image']))
         pbar.set_description(f"Completed batch {batch_idx + 1}/{len(dataloader)}")
 

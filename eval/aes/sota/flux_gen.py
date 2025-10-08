@@ -1,6 +1,7 @@
 import torch
 import os
 import sys
+import argparse
 from tqdm import tqdm
 from diffusers import FluxKontextPipeline
 from torch.utils.data import DataLoader
@@ -9,14 +10,23 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(
 from eval.aes.sota.custom_dataset import ImageEditDataset, collate_fn
 
 #set_path
-json_path = "data/sft_data/AesEditor/data_json/aes_edit_test.jsonl"
-data_path = "data/sft_data/AesEditor"
-output_path = "results/aes_eval/aes_edit_flux/edited_images"
-max_samples = 10
+# json_path = "data/sft_data/AesEditor/data_json/aes_edit_test.jsonl"
+# data_path = "data/sft_data/AesEditor"
+# output_path = "results/aes_eval/aes_edit_flux/edited_images"
+# max_samples = 10
+
+# get from args
+parser = argparse.ArgumentParser()
+parser.add_argument("--json_path", type=str, default="data/sft_data/AesEditor/data_json/aes_edit_test.jsonl")
+parser.add_argument("--data_path", type=str, default="data/sft_data/AesEditor")
+parser.add_argument("--output_path", type=str, default="results/aes_eval/aes_edit_flux/edited_images")
+parser.add_argument("--max_samples", type=int, default=10)
+parser.add_argument("--data_split", type=str, default="1-0")
+args = parser.parse_args()
 
 #load_data
 max_samples_per_source = None
-dataset = ImageEditDataset(json_path, data_path, output_path, max_samples_per_source=max_samples)
+dataset = ImageEditDataset(args.json_path, args.data_path, args.output_path, max_samples_per_source=args.max_samples, data_split=args.data_split)
 dataloader = DataLoader(
     dataset,
     batch_size=4,
@@ -43,7 +53,7 @@ with tqdm(total=len(dataset), desc="Processing images", unit="img") as pbar:
         for i in range(len(images)):
 
             target_path = target_paths[i]
-            output_file_path = os.path.join(output_path, target_path)
+            output_file_path = os.path.join(args.output_path, target_path)
             
             if os.path.exists(output_file_path):
                 pbar.update(1)

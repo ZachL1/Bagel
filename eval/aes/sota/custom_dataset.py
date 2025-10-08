@@ -5,7 +5,7 @@ from diffusers.utils import load_image
 import random
 
 class ImageEditDataset(Dataset):
-    def __init__(self, json_path, data_path, output_path, max_samples_per_source=None):
+    def __init__(self, json_path, data_path, output_path, max_samples_per_source=None, data_split=None):
         self.json_path=json_path
         self.data_path = data_path
         self.output_path = output_path
@@ -21,6 +21,14 @@ class ImageEditDataset(Dataset):
         
         if max_samples_per_source is not None:
             data = self._sample_data_by_source(data, max_samples_per_source)
+
+        # split the data into n parts and load the m-th part
+        if data_split is not None:
+            n, m = map(int, data_split.split("-"))
+            begin = int(m * len(data) / n)
+            end = int((m + 1) * len(data) / n)
+            print(f"Loading {len(data)} editing requests from {begin} to {end}")
+            data = data[begin:end]
         
         self.data=data
     
@@ -53,6 +61,9 @@ class ImageEditDataset(Dataset):
         raw_image = load_image(image_path)
         prompt = single_data["instruction"]
         target_image_path = single_data["target"]
+
+        # if single_data["type"] == "enhancement":
+        #     prompt = single_data["instructions"]
         
         return {
             'image': raw_image,
