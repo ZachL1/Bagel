@@ -36,7 +36,6 @@ def load_edit_data(data_path: str, data_split: str, max_samples: int, base_image
             data_count[item["source"]] = data_count.get(item["source"], 0) + 1
 
             item["output_image"] = os.path.join(image_output_dir, item["target"])
-            os.makedirs(os.path.dirname(item["output_image"]), exist_ok=True)
             item["raw"] = os.path.join(base_image_dir, item["raw"])
             item["target"] = os.path.join(base_image_dir, item["target"])
 
@@ -53,7 +52,7 @@ def load_edit_data(data_path: str, data_split: str, max_samples: int, base_image
     return used_data
 
 
-def process_edit_request(item: Dict[str, Any], base_image_dir: str, inferencer) -> Dict[str, Any]:
+def process_edit_request(item: Dict[str, Any], base_image_dir: str, inferencer, long_prompt: bool) -> Dict[str, Any]:
     """Process a single image editing request"""
     image_path = item.get("raw", "")
     instruction = item.get("instruction", "")
@@ -70,7 +69,10 @@ def process_edit_request(item: Dict[str, Any], base_image_dir: str, inferencer) 
         return item
     
     # Use the instruction for editing
-    edit_prompt = instruction if instruction else instructions
+    if not long_prompt:
+        edit_prompt = instruction if instruction else instructions
+    else:
+        edit_prompt = instructions if instructions else instruction
     
     # Inference hyperparameters for editing
     inference_hyper = DEFAULT_EDIT_INFERENCE_PARAMS.copy()
@@ -88,6 +90,7 @@ def process_edit_request(item: Dict[str, Any], base_image_dir: str, inferencer) 
     # Save the output image if generated
     if output_dict.get('image') is not None:
         # save the image to the output directory
+        os.makedirs(os.path.dirname(item["output_image"]), exist_ok=True)
         output_dict['image'].save(item["output_image"])
     
     return item
@@ -97,7 +100,7 @@ def run_inference(args):
     set_seed(args.seed)
     
     print("Loading model...")
-    inferencer = create_inferencer(args.model_path, args.llm_path, args.max_mem_per_gpu)
+    inferencer = create_inferencer(args.model_path, args.llm_path, args.max_mem_per_gpu, visual_und=args.visual_und)
     
     # Create output directory
     output_dir = Path(args.output_dir) / args.tag
@@ -118,7 +121,7 @@ def run_inference(args):
             if os.path.exists(item["output_image"]):
                 result = item
             else:
-                result = process_edit_request(item, args.base_image_dir, inferencer)
+                result = process_edit_request(item, args.base_image_dir, inferencer, args.long_prompt)
             print(result)
         except Exception as e:
             print(f"Error processing item {i}: {e}")
@@ -156,12 +159,17 @@ def main():
                         help="Maximum number of samples to process (-1 for all)")
     parser.add_argument("--seed", type=int, default=42,
                         help="Random seed for reproducibility")
-    parser.add_argument("--use_ema", type=bool, default=True,
+    parser.add_argument("--no_ema", action="store_true",
                         help="Use EMA weights")
     parser.add_argument("--data_split", type=str, default="4-0", 
                         help="m-n means the data is split into m parts and inference the n-th part")
-    
+    parser.add_argument("--no_visual_und", action="store_true",
+                        help="Use visual understanding")
+    parser.add_argument("--long_prompt", action="store_true",
+                        help="Use long prompt")
     args = parser.parse_args()
+    args.use_ema = not args.no_ema
+    args.visual_und = not args.no_visual_und
     run_inference(args)
 
 

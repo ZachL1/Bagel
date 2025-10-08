@@ -12,14 +12,14 @@
 #     --max_mem_per_gpu 40GiB \
 #     --seed 42
 
-EXP_TAG=aes_edit_qwen_60
+EXP_TAG=aes_edit_bagel
 MODEL_PATH=./models/BAGEL-7B-MoT
-LLM_PATH=./results/from_qwen25_7b_edit0.8_fix/checkpoints/0060000
+LLM_PATH=./models/BAGEL-7B-MoT
 mkdir -p results/aes_eval/$EXP_TAG
 CUDA_BASE=0
-SPLIT_CNT=8
+SPLIT_CNT=1
 for ((i=0; i<SPLIT_CNT; ++i)); do
-    CUDA_VISIBLE_DEVICES=$((CUDA_BASE + i)) /bin/python -u eval/aes/edit_infer.py \
+    CUDA_VISIBLE_DEVICES=$((CUDA_BASE + i)) python -u eval/aes/edit_infer.py \
         --tag $EXP_TAG \
         --model_path $MODEL_PATH \
         --llm_path $LLM_PATH \
@@ -28,9 +28,92 @@ for ((i=0; i<SPLIT_CNT; ++i)); do
         --output_dir results/aes_eval \
         --max_mem_per_gpu 80GiB \
         --data_split ${SPLIT_CNT}-${i} \
-        --max_samples 10000 \
-        --seed 42 > results/aes_eval/$EXP_TAG/log${i}.txt &
+        --max_samples 30 \
+        --seed 42 > results/aes_eval/$EXP_TAG/log${i}.txt
 done
+
+EXP_TAG=aes_edit_bagel_14
+MODEL_PATH=./models/BAGEL-7B-MoT
+LLM_PATH=./results/from_bagel_14k
+mkdir -p results/aes_eval/$EXP_TAG
+CUDA_BASE=0
+SPLIT_CNT=1
+for ((i=0; i<SPLIT_CNT; ++i)); do
+    CUDA_VISIBLE_DEVICES=$((CUDA_BASE + i)) python -u eval/aes/edit_infer.py \
+        --tag $EXP_TAG \
+        --model_path $MODEL_PATH \
+        --llm_path $LLM_PATH \
+        --edit_data_path data/sft_data/AesEditor/data_json/aes_edit_test.jsonl \
+        --base_image_dir data/sft_data/AesEditor \
+        --output_dir results/aes_eval \
+        --max_mem_per_gpu 80GiB \
+        --data_split ${SPLIT_CNT}-${i} \
+        --max_samples 30 \
+        --seed 42 > results/aes_eval/$EXP_TAG/log${i}.txt
+done
+
+EXP_TAG=aes_edit_bagel_random_60k
+MODEL_PATH=./models/BAGEL-7B-MoT
+LLM_PATH=./results/from_bagel_random_60k
+mkdir -p results/aes_eval/$EXP_TAG
+CUDA_BASE=0
+SPLIT_CNT=1
+for ((i=0; i<SPLIT_CNT; ++i)); do
+    CUDA_VISIBLE_DEVICES=$((CUDA_BASE + i)) python -u eval/aes/edit_infer.py \
+        --tag $EXP_TAG \
+        --model_path $MODEL_PATH \
+        --llm_path $LLM_PATH \
+        --edit_data_path data/sft_data/AesEditor/data_json/aes_edit_test.jsonl \
+        --base_image_dir data/sft_data/AesEditor \
+        --output_dir results/aes_eval \
+        --max_mem_per_gpu 80GiB \
+        --data_split ${SPLIT_CNT}-${i} \
+        --max_samples 30 \
+        --seed 42 > results/aes_eval/$EXP_TAG/log${i}.txt
+done
+
+EXP_TAG=aes_edit_bagel_random_60k_nov
+MODEL_PATH=./models/BAGEL-7B-MoT
+LLM_PATH=./results/from_bagel_random_60k_nov
+mkdir -p results/aes_eval/$EXP_TAG
+CUDA_BASE=0
+SPLIT_CNT=1
+for ((i=0; i<SPLIT_CNT; ++i)); do
+    CUDA_VISIBLE_DEVICES=$((CUDA_BASE + i)) python -u eval/aes/edit_infer.py \
+        --tag $EXP_TAG \
+        --model_path $MODEL_PATH \
+        --llm_path $LLM_PATH \
+        --edit_data_path data/sft_data/AesEditor/data_json/aes_edit_test.jsonl \
+        --base_image_dir data/sft_data/AesEditor \
+        --output_dir results/aes_eval \
+        --max_mem_per_gpu 80GiB \
+        --data_split ${SPLIT_CNT}-${i} \
+        --max_samples 30 \
+        --no_visual_und \
+        --seed 42 > results/aes_eval/$EXP_TAG/log${i}.txt
+done
+
+EXP_TAG=aes_edit_bagel_random_60k_long
+MODEL_PATH=./models/BAGEL-7B-MoT
+LLM_PATH=./results/from_bagel_random_60k
+mkdir -p results/aes_eval/$EXP_TAG
+CUDA_BASE=0
+SPLIT_CNT=1
+for ((i=0; i<SPLIT_CNT; ++i)); do
+    CUDA_VISIBLE_DEVICES=$((CUDA_BASE + i)) python -u eval/aes/edit_infer.py \
+        --tag $EXP_TAG \
+        --model_path $MODEL_PATH \
+        --llm_path $LLM_PATH \
+        --edit_data_path data/sft_data/AesEditor/data_json/aes_edit_test.jsonl \
+        --base_image_dir data/sft_data/AesEditor \
+        --output_dir results/aes_eval \
+        --max_mem_per_gpu 80GiB \
+        --data_split ${SPLIT_CNT}-${i} \
+        --max_samples 30 \
+        --long_prompt \
+        --seed 42 > results/aes_eval/$EXP_TAG/log${i}.txt
+done
+
 
 # EXP_TAG=aes_edit_qwen_40
 # MODEL_PATH=./models/BAGEL-7B-MoT

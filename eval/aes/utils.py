@@ -38,7 +38,7 @@ def set_seed(seed: int = 42):
     torch.backends.cudnn.benchmark = False
 
 
-def load_model_configs(model_path: str, llm_path: str):
+def load_model_configs(model_path: str, llm_path: str, visual_und: bool):
     """Load and prepare model configurations"""
     # LLM config preparing
     llm_config = Qwen2Config.from_json_file(os.path.join(llm_path, "config.json"))
@@ -57,7 +57,7 @@ def load_model_configs(model_path: str, llm_path: str):
     # Bagel config preparing
     config = BagelConfig(
         visual_gen=True,
-        visual_und=True,
+        visual_und=visual_und,
         llm_config=llm_config, 
         vit_config=vit_config,
         vae_config=vae_config,
@@ -74,9 +74,14 @@ def create_empty_model(llm_config, vit_config, config):
     """Create empty model structure"""
     with init_empty_weights():
         language_model = Qwen2ForCausalLM(llm_config)
-        vit_model = SiglipVisionModel(vit_config)
+        if config.visual_und:
+            print("Visual understanding is enabled")
+        else:
+            print("Visual understanding is disabled")
+        vit_model = SiglipVisionModel(vit_config) if config.visual_und else None
         model = Bagel(language_model, vit_model, config)
-        model.vit_model.vision_model.embeddings.convert_conv2d_to_linear(vit_config, meta=True)
+        if config.visual_und:
+            model.vit_model.vision_model.embeddings.convert_conv2d_to_linear(vit_config, meta=True)
     return model
 
 
@@ -142,7 +147,7 @@ def load_model_weights(model, llm_path: str, device_map, use_ema: bool = True):
     return model
 
 
-def load_bagel_model(model_path: str, llm_path: str, max_mem_per_gpu: str = "40GiB", use_ema: bool = True):
+def load_bagel_model(model_path: str, llm_path: str, max_mem_per_gpu: str = "40GiB", use_ema: bool = True, visual_und: bool = True):
     """
     Complete BAGEL model loading pipeline
     
@@ -155,7 +160,7 @@ def load_bagel_model(model_path: str, llm_path: str, max_mem_per_gpu: str = "40G
         Tuple of (model, vae_model, tokenizer, vae_transform, vit_transform, new_token_ids)
     """
     print("Loading model configurations...")
-    llm_config, vit_config, vae_model, vae_config, config = load_model_configs(model_path, llm_path)
+    llm_config, vit_config, vae_model, vae_config, config = load_model_configs(model_path, llm_path, visual_und)
     
     print("Creating empty model structure...")
     model = create_empty_model(llm_config, vit_config, config)
@@ -174,7 +179,7 @@ def load_bagel_model(model_path: str, llm_path: str, max_mem_per_gpu: str = "40G
     return model, vae_model, tokenizer, vae_transform, vit_transform, new_token_ids
 
 
-def create_inferencer(model_path: str, llm_path: str, max_mem_per_gpu: str = "40GiB", use_ema: bool = True):
+def create_inferencer(model_path: str, llm_path: str, max_mem_per_gpu: str = "40GiB", use_ema: bool = True, visual_und: bool = True):
     """
     Create InterleaveInferencer with loaded BAGEL model
     
@@ -187,7 +192,7 @@ def create_inferencer(model_path: str, llm_path: str, max_mem_per_gpu: str = "40
         InterleaveInferencer instance
     """
     model, vae_model, tokenizer, vae_transform, vit_transform, new_token_ids = load_bagel_model(
-        model_path, llm_path, max_mem_per_gpu, use_ema
+        model_path, llm_path, max_mem_per_gpu, use_ema, visual_und
     )
     
     inferencer = InterleaveInferencer(

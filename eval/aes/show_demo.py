@@ -8,12 +8,15 @@ import matplotlib.pyplot as plt
 bench_json = "data/sft_data/AesEditor/data_json/aes_edit_test.jsonl"
 data_dir = "data/sft_data/AesEditor/"
 result_dirs = {
+    "Bagel": "results/aes_eval/aes_edit_bagel/edited_images",
     "flux": "results/aes_eval/flux_subset/data",
     "qwen_image": "results/aes_eval/qwen_subset/aes_edit_data",
-    "Bagel": "results/aes_eval/aes_edit_bagel/edited_images",
     "Bagel_14k": "results/aes_eval/aes_edit_bagel_14/edited_images",
     # "Bagel_28k": "results/aes_eval/aes_edit_bagel_28/edited_images",
-    "Qwen_60k": "results/aes_eval/aes_edit_qwen_60/edited_images",
+    # "Qwen_60k": "results/aes_eval/aes_edit_qwen_60/edited_images",
+    "Bagel_r": "results/aes_eval/aes_edit_bagel_random_60k/edited_images",
+    "Bagel_r_nov": "results/aes_eval/aes_edit_bagel_random_60k_nov/edited_images",
+    "Bagel_r_long": "results/aes_eval/aes_edit_bagel_random_60k_long/edited_images",
 }
 
 show_count = 500
@@ -46,8 +49,8 @@ if __name__ == "__main__":
         
         # show the raw image, instruction, and target image in one raw
         # and the result images in one raw
-        rows = 1 + (len(result_images.keys()) + 1) // 2
-        cols = 2
+        cols = 3
+        rows = 1 + (len(result_images.keys()) + 1) // cols
         fig, axes = plt.subplots(rows, cols, figsize=(5*cols, 5*rows*(raw_image.height/raw_image.width)))
         axes[0, 0].imshow(raw_image)
         axes[0, 0].set_title("Raw Image")
@@ -55,14 +58,15 @@ if __name__ == "__main__":
         axes[0, 1].set_title("Target Image")
         # axes[0, 1].set_title("Instruction")
         # axes[0, 1].text(0.5, 0.5, instruction, ha='center', va='center')
-        for i, tag in enumerate(result_images.keys()):
-            axes[1+i//2, i%2].imshow(result_images[tag])
-            axes[1+i//2, i%2].set_title(f"{tag}")
+        for idx, tag in enumerate(result_images.keys()):
+            i = idx + 2
+            axes[i//cols, i%cols].imshow(result_images[tag])
+            axes[i//cols, i%cols].set_title(f"{tag}")
         
         # Hide axes for all subplots
         for i in range(rows):
-            axes[i, 0].axis('off')
-            axes[i, 1].axis('off')
+            for j in range(cols):
+                axes[i, j].axis('off')
 
         fig.suptitle(instruction, wrap=True)
         fig.tight_layout()

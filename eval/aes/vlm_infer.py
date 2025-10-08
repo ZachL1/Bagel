@@ -123,10 +123,11 @@ def main():
                         help="Maximum memory per GPU")
     parser.add_argument("--seed", type=int, default=42,
                         help="Random seed for reproducibility")
-    parser.add_argument("--use_ema", type=bool, default=True,
+    parser.add_argument("--no_ema", action="store_true",
                         help="Use EMA weights")
     
     args = parser.parse_args()
+    args.use_ema = not args.no_ema
     run_inference(args)
 
 
