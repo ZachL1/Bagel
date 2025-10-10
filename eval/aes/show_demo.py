@@ -9,14 +9,14 @@ bench_json = "data/sft_data/AesEditor/data_json/aes_edit_test.jsonl"
 data_dir = "data/sft_data/AesEditor/"
 result_dirs = {
     "Bagel": "results/aes_eval/aes_edit_bagel/edited_images",
-    "flux": "results/aes_eval/flux_subset/data",
-    "qwen_image": "results/aes_eval/qwen_subset/aes_edit_data",
-    "Bagel_14k": "results/aes_eval/aes_edit_bagel_14/edited_images",
+    "flux": "results/aes_eval/flux/edited_images",
+    "qwen_image": "results/aes_eval/qwen/edited_images",
+    # "Bagel_14k": "results/aes_eval/aes_edit_bagel_14/edited_images",
     # "Bagel_28k": "results/aes_eval/aes_edit_bagel_28/edited_images",
     # "Qwen_60k": "results/aes_eval/aes_edit_qwen_60/edited_images",
-    "Bagel_r": "results/aes_eval/aes_edit_bagel_random_60k/edited_images",
-    "Bagel_r_nov": "results/aes_eval/aes_edit_bagel_random_60k_nov/edited_images",
-    "Bagel_r_long": "results/aes_eval/aes_edit_bagel_random_60k_long/edited_images",
+    # "Bagel_r": "results/aes_eval/aes_edit_bagel_random_60k/edited_images",
+    # "Bagel_r_nov": "results/aes_eval/aes_edit_bagel_random_60k_nov/edited_images",
+    "Our": "results/aes_eval/aes_edit_bagel_random_60k_long/edited_images",
 }
 
 show_count = 500
@@ -30,6 +30,16 @@ if __name__ == "__main__":
     random.shuffle(bench_data)
     for line in bench_data:
         data = json.loads(line)
+
+        use = True
+        for tag, result_dir in result_dirs.items():
+            result_path = os.path.join(result_dir, data['target'])
+            if not os.path.exists(result_path):
+                use = False
+                break
+        if not use:
+            continue
+        
         image_path = os.path.join(data_dir, data['raw'])
         raw_image = Image.open(image_path)
         image_path = os.path.join(data_dir, data['target'])
@@ -40,8 +50,6 @@ if __name__ == "__main__":
         result_images = {}
         for tag, result_dir in result_dirs.items():
             result_path = os.path.join(result_dir, data['target'])
-            if not os.path.exists(result_path):
-                continue
             result_image = Image.open(result_path)
             result_images[tag] = result_image
         if len(result_images) != len(result_dirs):
