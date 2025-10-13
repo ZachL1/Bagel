@@ -4,16 +4,16 @@
 from .interleave_datasets import UnifiedEditIterableDataset
 from .t2i_dataset import T2IIterableDataset
 from .vlm_dataset import SftJSONLIterableDataset
-from .aeseditor_dataset import AesEditorIterableDataset
-from .recon_dataset import ReconstructionDataset
+from .ocr_vlm_dataset import OCRVLMIterableDataset
+from .trans_dataset import ImageTranslationIterableDataset
 
 
 DATASET_REGISTRY = {
     't2i_pretrain': T2IIterableDataset,
     'vlm_sft': SftJSONLIterableDataset,
     'unified_edit': UnifiedEditIterableDataset,
-    'aes_edit': AesEditorIterableDataset,
-    'reconstruction': ReconstructionDataset,
+    'img_translation': ImageTranslationIterableDataset,
+    'ocr_vlm_sft': OCRVLMIterableDataset,
 }
 
 
@@ -39,28 +39,19 @@ DATASET_INFO = {
 			'jsonl_path': 'data/bagel_example/vlm/llava_ov_si.jsonl',
 			'num_total_samples': 1000
 		},
-        'aesmit': {
-			'data_dir': 'data/sft_data/AesMMIT/images_21904',
-			'jsonl_path': 'data/sft_data/AesMMIT/AesMMIT_labels.jsonl',
-			'num_total_samples': 409000
+    },
+    'img_translation': {
+        'trans_data': {
+			'data_dir': 'data/trans_data',
+			'jsonl_path': 'data/trans_data/annotations_with_paths.jsonl',
+			'num_total_samples': 8008
 		},
     },
-    'aes_edit': {
-        'aeseditor': {
-			'data_dir': 'data/sft_data/AesEditor',
-			'jsonl_path': 'data/sft_data/AesEditor/data_json/aes_edit_train_update.jsonl',
-			'num_total_samples': 99882
+    'ocr_vlm_sft': {
+        'trans_data': {
+			'data_dir': 'data/trans_data',
+			'jsonl_path': 'data/trans_data/annotations_with_paths.jsonl',
+			'num_total_samples': 8008
 		},
-        'aeseditor_test': {
-			'data_dir': 'data/sft_data/AesEditor',
-			'jsonl_path': 'data/sft_data/AesEditor/data_json/aes_edit_test_update.jsonl',
-			'num_total_samples': 12235
-		},
-    },
-    'reconstruction': {
-        'webdataset': {
-            'data_dir': './data/sft_data/text-to-image-2M/data_000000', # path containing all tar files
-            'num_files': 1, # number of data units to be sharded across all ranks and workers
-        },
     },
 }
