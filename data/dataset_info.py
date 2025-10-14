@@ -48,13 +48,13 @@ DATASET_INFO = {
     'aes_edit': {
         'aeseditor': {
 			'data_dir': 'data/sft_data/AesEditor',
-			'jsonl_path': 'data/sft_data/AesEditor/data_json/aes_edit_train_update.jsonl',
-			'num_total_samples': 99882
+			'jsonl_path': 'data/sft_data/AesEditor/data_json/ae_train.jsonl',
+			'num_total_samples': 133456
 		},
         'aeseditor_test': {
 			'data_dir': 'data/sft_data/AesEditor',
-			'jsonl_path': 'data/sft_data/AesEditor/data_json/aes_edit_test_update.jsonl',
-			'num_total_samples': 12235
+			'jsonl_path': 'data/sft_data/AesEditor/data_json/ae_test.jsonl',
+			'num_total_samples': 10679
 		},
     },
     'reconstruction': {

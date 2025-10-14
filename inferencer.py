@@ -9,7 +9,7 @@ import torch
 
 from data.data_utils import pil_img2rgb
 from modeling.bagel.qwen2_navit import NaiveCache
-
+from modeling.bagel import Bagel
 
 
 VLM_THINK_SYSTEM_PROMPT = '''You should first think about the reasoning process in the mind and then provide the user with the answer. 
@@ -21,7 +21,7 @@ The planning process is enclosed within <think> </think> tags, i.e. <think> plan
 
 class InterleaveInferencer:
     def __init__(self, model, vae_model, tokenizer, vae_transform, vit_transform, new_token_ids):
-        self.model = model
+        self.model : Bagel = model
         self.vae_model = vae_model
         self.tokenizer = tokenizer
         self.vae_transform = vae_transform
@@ -78,7 +78,7 @@ class InterleaveInferencer:
             )
             past_key_values = self.model.forward_cache_update_vae(self.vae_model, past_key_values, **generation_input)
         
-        if vit:
+        if vit and hasattr(self.model, 'vit_model'):
             ## update vit
             generation_input, kv_lens, ropes = self.model.prepare_vit_images(
                 curr_kvlens=kv_lens,
