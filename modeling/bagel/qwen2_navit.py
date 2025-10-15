@@ -812,6 +812,179 @@ class Qwen2MoTDecoderLayer(nn.Module):
         packed_query_sequence = residual + packed_query_sequence
         return packed_query_sequence, past_key_values
 
+class Qwen2MoTDecoderAesLayer(Qwen2MoTDecoderLayer):
+    def __init__(self, config, layer_idx: Optional[int] = None):
+        super().__init__(config, layer_idx)
+        self.mlp_aes_moe_gen = Qwen2MLP(config)
+        # Router for MoE: maps hidden_size to 2 experts
+        self.aes_moe_router = nn.Linear(config.hidden_size, 2, bias=False)
+    
+    def forward_train(
+        self,
+        packed_sequence: torch.Tensor,
+        sample_lens: List[int],
+        attention_mask,
+        packed_position_embeddings: Tuple[torch.Tensor, torch.Tensor],
+        packed_und_token_indexes: torch.LongTensor,
+        packed_gen_token_indexes: torch.LongTensor,
+    ) -> torch.Tensor:
+
+        residual = packed_sequence
+        packed_sequence_ = packed_sequence.new_zeros(packed_sequence.shape)
+        packed_sequence_[packed_und_token_indexes] = self.input_layernorm(packed_sequence[packed_und_token_indexes])
+        packed_sequence_[packed_gen_token_indexes] = self.input_layernorm_moe_gen(packed_sequence[packed_gen_token_indexes])
+
+        # Self Attention
+        packed_sequence_ = self.self_attn(
+            packed_sequence=packed_sequence_,
+            sample_lens=sample_lens,
+            attention_mask=attention_mask,
+            packed_position_embeddings=packed_position_embeddings,
+            packed_und_token_indexes=packed_und_token_indexes,
+            packed_gen_token_indexes=packed_gen_token_indexes,
+        )
+        if self.freeze_und:
+            packed_sequence_[packed_und_token_indexes] = packed_sequence_[packed_und_token_indexes].detach()
+        packed_sequence = residual + packed_sequence_
+
+        # Fully Connected - MoE for und tokens
+        residual = packed_sequence
+        packed_sequence_ = packed_sequence.new_zeros(packed_sequence.shape)
+        
+        # MoE for und_token_indexes: route between self.mlp and self.mlp_aes_moe_gen
+        und_hidden_states = self.post_attention_layernorm(packed_sequence[packed_und_token_indexes])
+        
+        # Compute router logits and select top-1 expert (hard routing)
+        router_logits = self.aes_moe_router(und_hidden_states)  # [num_und_tokens, 2]
+        selected_experts = torch.argmax(router_logits, dim=-1)  # [num_und_tokens]
+        
+        # Initialize output tensor
+        moe_output = torch.zeros_like(und_hidden_states)
+        
+        # Route tokens to expert 1 (self.mlp)
+        expert_1_mask = selected_experts == 0
+        if expert_1_mask.any():
+            expert_1_tokens = und_hidden_states[expert_1_mask]
+            moe_output[expert_1_mask] = self.mlp(expert_1_tokens)
+        
+        # Route tokens to expert 2 (self.mlp_aes_moe_gen)
+        expert_2_mask = selected_experts == 1
+        if expert_2_mask.any():
+            expert_2_tokens = und_hidden_states[expert_2_mask]
+            moe_output[expert_2_mask] = self.mlp_aes_moe_gen(expert_2_tokens)
+        
+        packed_sequence_[packed_und_token_indexes] = moe_output
+        
+        if self.freeze_und:
+            packed_sequence_[packed_und_token_indexes] = packed_sequence_[packed_und_token_indexes].detach()
+    
+        packed_sequence_[packed_gen_token_indexes] = self.mlp_moe_gen(
+            self.post_attention_layernorm_moe_gen(packed_sequence[packed_gen_token_indexes])
+        )
+        packed_sequence = residual + packed_sequence_
+
+        return packed_sequence
+    
+    def forward_inference(
+        self,
+        packed_query_sequence: torch.Tensor,
+        query_lens: torch.Tensor,
+        packed_query_position_embeddings: torch.Tensor,
+        packed_query_indexes: torch.Tensor,
+        past_key_values: Optional[NaiveCache] = None,
+        key_values_lens: Optional[torch.Tensor] = None,
+        packed_key_value_indexes: Optional[torch.Tensor] = None,
+        update_past_key_values=True,
+        is_causal=True,
+        mode="und",
+        packed_vae_token_indexes=None,
+        packed_text_indexes=None,
+    ) -> BaseNavitOutputWithPast:
+
+        residual = packed_query_sequence
+        if mode == "und":
+            packed_query_sequence = self.input_layernorm(packed_query_sequence)
+        elif mode == "gen":
+            packed_query_sequence_ = torch.zeros_like(packed_query_sequence)
+            packed_query_sequence_[packed_text_indexes] = self.input_layernorm(packed_query_sequence[packed_text_indexes])
+            packed_query_sequence_[packed_vae_token_indexes] = self.input_layernorm_moe_gen(packed_query_sequence[packed_vae_token_indexes])
+            packed_query_sequence = packed_query_sequence_
+
+        # Self Attention
+        packed_query_sequence, past_key_values = self.self_attn(
+            packed_query_sequence=packed_query_sequence,
+            query_lens=query_lens,
+            packed_query_position_embeddings=packed_query_position_embeddings,
+            packed_query_indexes=packed_query_indexes,
+            past_key_values=past_key_values,
+            key_values_lens=key_values_lens,
+            packed_key_value_indexes=packed_key_value_indexes,
+            update_past_key_values=update_past_key_values,
+            is_causal=is_causal,
+            mode=mode,
+            packed_vae_token_indexes=packed_vae_token_indexes,
+            packed_text_indexes=packed_text_indexes,
+        )
+        packed_query_sequence = residual + packed_query_sequence
+
+        # Fully Connected
+        residual = packed_query_sequence
+        if mode == "und":
+            # MoE routing for und mode - hard routing (top-1 expert)
+            und_hidden_states = self.post_attention_layernorm(packed_query_sequence)
+            
+            # Compute router logits and select top-1 expert
+            router_logits = self.aes_moe_router(und_hidden_states)
+            selected_experts = torch.argmax(router_logits, dim=-1)
+            
+            # Initialize output tensor
+            packed_query_sequence = torch.zeros_like(und_hidden_states)
+            
+            # Route tokens to expert 1 (self.mlp)
+            expert_1_mask = selected_experts == 0
+            if expert_1_mask.any():
+                expert_1_tokens = und_hidden_states[expert_1_mask]
+                packed_query_sequence[expert_1_mask] = self.mlp(expert_1_tokens)
+            
+            # Route tokens to expert 2 (self.mlp_aes_moe_gen)
+            expert_2_mask = selected_experts == 1
+            if expert_2_mask.any():
+                expert_2_tokens = und_hidden_states[expert_2_mask]
+                packed_query_sequence[expert_2_mask] = self.mlp_aes_moe_gen(expert_2_tokens)
+        elif mode == "gen":
+            packed_text_query_sequence = packed_query_sequence[packed_text_indexes]
+            packed_vae_query_sequence = packed_query_sequence[packed_vae_token_indexes]
+            packed_text_query_sequence = self.post_attention_layernorm(packed_text_query_sequence).to(torch.bfloat16)
+            packed_vae_query_sequence = self.post_attention_layernorm_moe_gen(packed_vae_query_sequence).to(torch.bfloat16)
+
+            packed_query_sequence_ = torch.zeros_like(packed_query_sequence).to(torch.bfloat16)
+            
+            # MoE routing for text tokens in gen mode - hard routing (top-1 expert)
+            text_router_logits = self.aes_moe_router(packed_text_query_sequence)
+            text_selected_experts = torch.argmax(text_router_logits, dim=-1)
+            
+            # Initialize output for text tokens
+            text_moe_output = torch.zeros_like(packed_text_query_sequence)
+            
+            # Route text tokens to expert 1 (self.mlp)
+            text_expert_1_mask = text_selected_experts == 0
+            if text_expert_1_mask.any():
+                text_expert_1_tokens = packed_text_query_sequence[text_expert_1_mask]
+                text_moe_output[text_expert_1_mask] = self.mlp(text_expert_1_tokens)
+            
+            # Route text tokens to expert 2 (self.mlp_aes_moe_gen)
+            text_expert_2_mask = text_selected_experts == 1
+            if text_expert_2_mask.any():
+                text_expert_2_tokens = packed_text_query_sequence[text_expert_2_mask]
+                text_moe_output[text_expert_2_mask] = self.mlp_aes_moe_gen(text_expert_2_tokens)
+            
+            packed_query_sequence_[packed_text_indexes] = text_moe_output
+            packed_query_sequence_[packed_vae_token_indexes] = self.mlp_moe_gen(packed_vae_query_sequence)
+            packed_query_sequence = packed_query_sequence_
+
+        packed_query_sequence = residual + packed_query_sequence
+        return packed_query_sequence, past_key_values
+
 
 class Qwen2MoEDecoderLayer(nn.Module):
     def __init__(self, config, layer_idx: Optional[int] = None):
@@ -931,9 +1104,16 @@ class Qwen2Model(Qwen2PreTrainedModel):
 
         self.embed_tokens = nn.Embedding(config.vocab_size, config.hidden_size, self.padding_idx)
         layer_module = Decoder_layer_dict[config.layer_module]
-        self.layers = nn.ModuleList(
-            [layer_module(config, layer_idx) for layer_idx in range(config.num_hidden_layers)]
-        )
+        if config.layer_module == "Qwen2MoTDecoderLayer" and config.aes_moe:
+            self.layers = nn.ModuleList(
+                [Qwen2MoTDecoderAesLayer(config, layer_idx=0)] + \
+                [layer_module(config, layer_idx) for layer_idx in range(1, config.num_hidden_layers - 1)] + \
+                [Qwen2MoTDecoderAesLayer(config, layer_idx=config.num_hidden_layers - 1)]
+            )
+        else:
+            self.layers = nn.ModuleList(
+                [layer_module(config, layer_idx) for layer_idx in range(config.num_hidden_layers)]
+            )
 
         self.norm = Qwen2RMSNorm(config.hidden_size, eps=config.rms_norm_eps)
         if self.use_moe:
@@ -1075,7 +1255,10 @@ class Qwen2ForCausalLM(Qwen2PreTrainedModel):
 
     def init_moe(self):
         for name, param in self.named_parameters():
-            if "moe_gen" in name:
+            if "aes_moe_gen" in name:
+                original_name = name.replace("_aes_moe_gen", "")
+                param.data.copy_(self.state_dict()[original_name].data)
+            elif "moe_gen" in name:
                 original_name = name.replace("_moe_gen", "")
                 param.data.copy_(self.state_dict()[original_name].data)
 

@@ -40,7 +40,12 @@ torchrun \
   --wandb_name $exp_name \
   --results_dir $output_path \
   --checkpoint_dir $ckpt_path \
-  --visual_und True
+  --visual_und True \
+  --freeze_vit True \
+  --freeze_und True \
+  --aes_moe True \
+  --freeze_llm True \
+  --train_moe True
 
   # --expected_num_tokens 10240 \
   # --max_num_tokens 11520 \
