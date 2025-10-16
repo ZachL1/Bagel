@@ -29,6 +29,7 @@ from modeling.bagel.qwen2_navit import (
     Qwen2DecoderLayer, 
     Qwen2MoEDecoderLayer, 
     Qwen2MoTDecoderLayer,
+    Qwen2MoTDecoderAesLayer,
 )
 from modeling.bagel.siglip_navit import SiglipEncoderLayer, SiglipVisionTransformer
 
@@ -66,6 +67,7 @@ def fsdp_wrapper(original_model, fsdp_config, ignored_modules=[]):
                 Qwen2DecoderLayer,
                 Qwen2MoEDecoderLayer,
                 Qwen2MoTDecoderLayer,
+                Qwen2MoTDecoderAesLayer,
                 SiglipEncoderLayer,
                 SiglipVisionTransformer,
                 MLPconnector,
@@ -84,7 +86,7 @@ def fsdp_wrapper(original_model, fsdp_config, ignored_modules=[]):
         backward_prefetch=BackwardPrefetch[fsdp_config.backward_prefetch],
         cpu_offload=CPUOffload(offload_params=fsdp_config.cpu_offload),
         device_mesh=device_mesh,
-        use_orig_params=True,
+        # use_orig_params=True,
     )
 
 

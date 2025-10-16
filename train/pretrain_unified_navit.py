@@ -336,13 +336,17 @@ class TrainingArguments:
         default=False,
         metadata={"help": "Freeze the visual understanding connector layers."}
     )
+    freeze_lm_head: bool = field(
+        default=False,
+        metadata={"help": "Keep the language model head fixed."}
+    )
     copy_init_moe: bool = field(
         default=True,
         metadata={"help": "Duplicate initial MoE experts so each has identical initialisation."}
     )
     train_moe: bool = field(
         default=False,
-        metadata={"help": "Train the MoE experts even if the language model is frozen."}
+        metadata={"help": "Train the Aes MoE experts even if freeze_und."}
     )
     use_flex: bool = field(
         default=False,
@@ -415,6 +419,7 @@ def main():
     llm_config.tie_word_embeddings = model_args.tie_word_embeddings
     llm_config.freeze_und = training_args.freeze_und
     llm_config.aes_moe = training_args.aes_moe
+    llm_config.train_moe = training_args.train_moe
     if training_args.finetune_from_hf:
         language_model = Qwen2ForCausalLM(llm_config)
     else:
@@ -475,17 +480,19 @@ def main():
         for param in vae_model.parameters():
             param.requires_grad = False
     if training_args.freeze_llm:
-        # model.language_model.eval()
-        # for param in model.language_model.parameters():
-        #     param.requires_grad = False
-        for name, param in model.language_model.named_parameters():
-            if training_args.train_moe and "moe" in name:
-                continue
+        model.language_model.eval()
+        for param in model.language_model.parameters():
             param.requires_grad = False
+        # for name, param in model.language_model.named_parameters():
+        #     if training_args.train_moe and "moe" in name:
+        #         continue
+        #     param.requires_grad = False
     if training_args.freeze_vit and training_args.visual_und:
         model.vit_model.eval()
         for param in model.vit_model.parameters():
             param.requires_grad = False
+    if training_args.freeze_lm_head:
+        model.language_model.lm_head.requires_grad = False
 
     # Setup FSDP and load pretrained model:
     fsdp_config = FSDPConfig(

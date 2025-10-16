@@ -815,6 +815,7 @@ class Qwen2MoTDecoderLayer(nn.Module):
 class Qwen2MoTDecoderAesLayer(Qwen2MoTDecoderLayer):
     def __init__(self, config, layer_idx: Optional[int] = None):
         super().__init__(config, layer_idx)
+        self.train_moe = config.train_moe
         self.mlp_aes_moe_gen = Qwen2MLP(config)
         # Router for MoE: maps hidden_size to 2 experts
         self.aes_moe_router = nn.Linear(config.hidden_size, 2, bias=False)
@@ -866,18 +867,18 @@ class Qwen2MoTDecoderAesLayer(Qwen2MoTDecoderLayer):
         if expert_1_mask.any():
             expert_1_tokens = und_hidden_states[expert_1_mask]
             moe_output[expert_1_mask] = self.mlp(expert_1_tokens)
+        if self.freeze_und:
+            moe_output[expert_1_mask] = moe_output[expert_1_mask].detach()
         
         # Route tokens to expert 2 (self.mlp_aes_moe_gen)
         expert_2_mask = selected_experts == 1
         if expert_2_mask.any():
             expert_2_tokens = und_hidden_states[expert_2_mask]
             moe_output[expert_2_mask] = self.mlp_aes_moe_gen(expert_2_tokens)
+        if self.freeze_und and not self.train_moe:
+            moe_output[expert_2_mask] = moe_output[expert_2_mask].detach()
         
         packed_sequence_[packed_und_token_indexes] = moe_output
-        
-        if self.freeze_und:
-            packed_sequence_[packed_und_token_indexes] = packed_sequence_[packed_und_token_indexes].detach()
-    
         packed_sequence_[packed_gen_token_indexes] = self.mlp_moe_gen(
             self.post_attention_layernorm_moe_gen(packed_sequence[packed_gen_token_indexes])
         )

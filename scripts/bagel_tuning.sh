@@ -44,7 +44,6 @@ torchrun \
   --freeze_vit True \
   --freeze_und True \
   --aes_moe True \
-  --freeze_llm True \
   --train_moe True
 
   # --expected_num_tokens 10240 \
