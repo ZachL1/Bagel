@@ -1,6 +1,8 @@
 vlm_sft:
   dataset_names:
   - aesmit
+  - q-instruct
+  - llava-665k
   image_transform_args:
     image_stride: 14
     max_image_size: 980
@@ -13,8 +15,8 @@ vlm_sft:
   shuffle_lines: True
   shuffle_seed: 0
   num_used_data:
-  - 409000
-  weight: 0.1
+  - 9999999
+  weight: 0.2
 
 aes_edit:
   dataset_names:
@@ -32,4 +34,4 @@ aes_edit:
   shuffle_seed: 0
   num_used_data:
   - 133456
-  weight: 0.9
+  weight: 0.8

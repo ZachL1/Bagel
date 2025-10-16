@@ -44,6 +44,18 @@ DATASET_INFO = {
 			'jsonl_path': 'data/sft_data/AesMMIT/AesMMIT_labels.jsonl',
 			'num_total_samples': 409000
 		},
+        'q-instruct': {
+            'data_dir': 'data/sft_data/Q-Instruct-DB',
+            'json_path': 'data/sft_data/Q-Instruct-DB/cleaned_labels.json',
+            'num_total_samples': 200534,
+            # 'json_path': 'data/sft_data/Q-Instruct-DB/qinstruct_qalign.json',
+            # 'num_total_samples': 488131
+        },
+        'llava-665k': {
+            'data_dir': 'data/sft_data/LLaVA-665k',
+            'json_path': 'data/sft_data/LLaVA-665k/llava_v1_5_mix665k.json',
+            'num_total_samples': 665298
+        }
     },
     'aes_edit': {
         'aeseditor': {
