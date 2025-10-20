@@ -854,6 +854,8 @@ class Qwen2MoTDecoderAesLayer(Qwen2MoTDecoderLayer):
         
         # MoE for und_token_indexes: route between self.mlp and self.mlp_aes_moe_gen
         und_hidden_states = self.post_attention_layernorm(packed_sequence[packed_und_token_indexes])
+        if self.freeze_und:
+            und_hidden_states = und_hidden_states.detach()
         
         # Compute router logits and select top-1 expert (hard routing)
         router_logits = self.aes_moe_router(und_hidden_states)  # [num_und_tokens, 2]
