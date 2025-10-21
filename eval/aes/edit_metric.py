@@ -5,14 +5,23 @@ import cv2
 import lpips
 import os
 import torch
+import torch.nn.functional as F
 from PIL import Image
 from tqdm import tqdm
-
+from skimage import color
+import clip
+import sys
 import concurrent.futures
+sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'IQA-PyTorch'))
+import pyiqa
+
+# pip install git+https://github.com/openai/CLIP.git
+# pip install scikit-image==0.24
+# pip install timm icecream transformers==4.37.2 # for pyiqa
 
 bench_json = "data/sft_data/AesEditor/data_json/aes_edit_test.jsonl"
 data_dir = "data/sft_data/AesEditor/"
-result_dir = "results/aes_eval/aes_edit_bagel/edited_images"
+result_dir = "results/aes_eval_bak/aes_edit_bagel/edited_images"
 
 
 def calculate_psnr(img1, img2):
@@ -70,6 +79,23 @@ def calculate_ssim(img1, img2):
         raise ValueError("Wrong input image dimensions.")
 
 
+def calculate_delta_e(img1, img2):
+    """Calculate CIELAB color difference (Delta E)
+    img1, img2: [0, 255] RGB images
+    Returns: mean Delta E value
+    """
+    # Convert RGB to LAB color space
+    # Input should be in [0, 1] range for skimage
+    img1_lab = color.rgb2lab(img1 / 255.0)
+    img2_lab = color.rgb2lab(img2 / 255.0)
+    
+    # Calculate Euclidean distance in LAB space
+    delta_e = np.sqrt(np.sum((img1_lab - img2_lab) ** 2, axis=2))
+    
+    # Return mean Delta E
+    return np.mean(delta_e)
+
+
 def load_image(image_path):
     """Load image and convert to numpy array in range [0, 255]"""
     img = Image.open(image_path).convert('RGB')
@@ -87,6 +113,7 @@ def main_task(lines, source_metrics, worker_id):
         item = json.loads(line.strip())
         image_name = item["target"]
         source = item.get("source", "unknown")  # Get source field, default to "unknown"
+        instruction = item.get("instruction", "")  # Get instruction for CLIP-T
         
         # Initialize source group if not exists
         if source not in source_metrics:
@@ -94,6 +121,13 @@ def main_task(lines, source_metrics, worker_id):
                 'psnr_scores': [],
                 'ssim_scores': [],
                 'lpips_scores': [],
+                'delta_e_scores': [],
+                'clip_t_scores': [],
+                'clip_i_scores': [],
+                'niqe_scores': [],
+                'nima_scores': [],
+                'musiq_scores': [],
+                'qalign_scores': [],
                 'processed_count': 0,
                 'skipped_count': 0
             }
@@ -130,6 +164,63 @@ def main_task(lines, source_metrics, worker_id):
             lpips_score = lpips_fn(target_tensor, result_tensor).squeeze().item()
         source_metrics[source]['lpips_scores'].append(lpips_score)
         
+        # Calculate Delta E (CIELAB color difference)
+        delta_e = calculate_delta_e(target_img, result_img)
+        source_metrics[source]['delta_e_scores'].append(delta_e)
+        
+        # Calculate CLIP-T (text-image similarity) and CLIP-I (image-image similarity)
+        with torch.no_grad():
+            # Convert images to PIL for CLIP preprocessing
+            target_pil = Image.fromarray(target_img.astype(np.uint8))
+            result_pil = Image.fromarray(result_img.astype(np.uint8))
+            
+            # Preprocess images for CLIP
+            target_clip = clip_preprocess(target_pil).unsqueeze(0).to(device)
+            result_clip = clip_preprocess(result_pil).unsqueeze(0).to(device)
+            
+            # Encode images
+            target_feature = clip_model.encode_image(target_clip)
+            result_feature = clip_model.encode_image(result_clip)
+            
+            # Normalize features
+            target_feature = F.normalize(target_feature, p=2, dim=1)
+            result_feature = F.normalize(result_feature, p=2, dim=1)
+            
+            # Calculate CLIP-I (image-image similarity)
+            clip_i_score = (target_feature * result_feature).sum(dim=1).cpu().item()
+            source_metrics[source]['clip_i_scores'].append(clip_i_score)
+            
+            # Calculate CLIP-T (text-image similarity) if instruction exists
+            if instruction:
+                text_token = clip.tokenize([instruction]).to(device)
+                text_feature = clip_model.encode_text(text_token)
+                text_feature = F.normalize(text_feature, p=2, dim=1)
+                clip_t_score = (text_feature * result_feature).sum(dim=1).cpu().item()
+                source_metrics[source]['clip_t_scores'].append(clip_t_score)
+        
+        # Calculate pyiqa metrics (NIQE, NIMA, MUSIQ, Q-Align)
+        # Convert result image to tensor format for pyiqa [0, 1] range
+        result_tensor_pyiqa = torch.from_numpy(result_img).float().permute(2, 0, 1).unsqueeze(0) / 255.0
+        result_tensor_pyiqa = result_tensor_pyiqa.to(device)
+        
+        with torch.no_grad():
+            # NIQE (No-Reference Image Quality Assessment)
+            niqe_score = niqe_metric(result_tensor_pyiqa).cpu().item()
+            source_metrics[source]['niqe_scores'].append(niqe_score)
+            
+            # NIMA (Neural Image Assessment)
+            nima_score = nima_metric(result_tensor_pyiqa).cpu().item()
+            source_metrics[source]['nima_scores'].append(nima_score)
+            
+            # MUSIQ (Multi-Scale Image Quality Transformer)
+            musiq_score = musiq_metric(result_tensor_pyiqa).cpu().item()
+            source_metrics[source]['musiq_scores'].append(musiq_score)
+            
+            # Q-Align (aesthetic score)
+            # qalign_score = qalign_metric(result_tensor_pyiqa, task_='aesthetic').cpu().item()
+            # # qalign_score = qalign_metric(result_tensor_pyiqa, task_='quality').cpu().item()
+            # source_metrics[source]['qalign_scores'].append(qalign_score)
+        
         source_metrics[source]['processed_count'] += 1
         
         # print(f"Processed {processed_count:3d}: [{source}] {image_name} - "
@@ -137,9 +228,22 @@ def main_task(lines, source_metrics, worker_id):
 
 
 if __name__ == "__main__":
-    # Initialize LPIPS
+    # Initialize device
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    
+    # Initialize LPIPS
     lpips_fn = lpips.LPIPS(net='alex').to(device)
+    
+    # Initialize CLIP
+    print("Loading CLIP model...")
+    clip_model, clip_preprocess = clip.load("ViT-B/32", device=device)
+    
+    # Initialize pyiqa metrics
+    print("Loading pyiqa metrics...")
+    niqe_metric = pyiqa.create_metric('niqe', device=device)
+    nima_metric = pyiqa.create_metric('nima', device=device)
+    musiq_metric = pyiqa.create_metric('musiq-ava', device=device)
+    qalign_metric = pyiqa.create_metric('qalign', device=device)
     
     # Storage for metrics grouped by source
     source_metrics = {}
@@ -163,16 +267,37 @@ if __name__ == "__main__":
     overall_psnr = []
     overall_ssim = []
     overall_lpips = []
+    overall_delta_e = []
+    overall_clip_t = []
+    overall_clip_i = []
+    overall_niqe = []
+    overall_nima = []
+    overall_musiq = []
+    overall_qalign = []
     
     for source, metrics in source_metrics.items():
         if metrics['psnr_scores']:
             avg_psnr = np.mean(metrics['psnr_scores'])
             avg_ssim = np.mean(metrics['ssim_scores'])
             avg_lpips = np.mean(metrics['lpips_scores'])
+            avg_delta_e = np.mean(metrics['delta_e_scores'])
+            avg_clip_i = np.mean(metrics['clip_i_scores']) if metrics['clip_i_scores'] else 0.0
+            avg_clip_t = np.mean(metrics['clip_t_scores']) if metrics['clip_t_scores'] else 0.0
+            avg_niqe = np.mean(metrics['niqe_scores'])
+            avg_nima = np.mean(metrics['nima_scores'])
+            avg_musiq = np.mean(metrics['musiq_scores'])
+            avg_qalign = np.mean(metrics['qalign_scores'])
             
             overall_psnr.extend(metrics['psnr_scores'])
             overall_ssim.extend(metrics['ssim_scores'])
             overall_lpips.extend(metrics['lpips_scores'])
+            overall_delta_e.extend(metrics['delta_e_scores'])
+            overall_clip_i.extend(metrics['clip_i_scores'])
+            overall_clip_t.extend(metrics['clip_t_scores'])
+            overall_niqe.extend(metrics['niqe_scores'])
+            overall_nima.extend(metrics['nima_scores'])
+            overall_musiq.extend(metrics['musiq_scores'])
+            overall_qalign.extend(metrics['qalign_scores'])
             
             print(f"\nSource: {source}")
             print("-" * 40)
@@ -181,6 +306,13 @@ if __name__ == "__main__":
             print(f"Average PSNR: {avg_psnr:.6f} dB")
             print(f"Average SSIM: {avg_ssim:.6f}")
             print(f"Average LPIPS: {avg_lpips:.6f}")
+            print(f"Average Delta E: {avg_delta_e:.6f}")
+            print(f"Average CLIP-T: {avg_clip_t:.6f}")
+            print(f"Average CLIP-I: {avg_clip_i:.6f}")
+            print(f"Average NIQE: {avg_niqe:.6f}")
+            print(f"Average NIMA: {avg_nima:.6f}")
+            print(f"Average MUSIQ: {avg_musiq:.6f}")
+            print(f"Average Q-Align: {avg_qalign:.6f}")
         else:
             print(f"\nSource: {source}")
             print("-" * 40)
@@ -196,6 +328,19 @@ if __name__ == "__main__":
         print(f"Overall Average PSNR: {np.mean(overall_psnr):.6f} dB")
         print(f"Overall Average SSIM: {np.mean(overall_ssim):.6f}")
         print(f"Overall Average LPIPS: {np.mean(overall_lpips):.6f}")
+        print(f"Overall Average Delta E: {np.mean(overall_delta_e):.6f}")
+        if overall_clip_t:
+            print(f"Overall Average CLIP-T: {np.mean(overall_clip_t):.6f}")
+        if overall_clip_i:
+            print(f"Overall Average CLIP-I: {np.mean(overall_clip_i):.6f}")
+        if overall_niqe:
+            print(f"Overall Average NIQE: {np.mean(overall_niqe):.6f}")
+        if overall_nima:
+            print(f"Overall Average NIMA: {np.mean(overall_nima):.6f}")
+        if overall_musiq:
+            print(f"Overall Average MUSIQ: {np.mean(overall_musiq):.6f}")
+        if overall_qalign:
+            print(f"Overall Average Q-Align: {np.mean(overall_qalign):.6f}")
         print("="*80)
     else:
         print("\nNo images were successfully processed!")
