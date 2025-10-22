@@ -16,10 +16,10 @@ sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'IQA-Py
 import pyiqa
 
 # pip install git+https://github.com/openai/CLIP.git
-# pip install scikit-image==0.24
+# pip install lpips scikit-image==0.24
 # pip install timm icecream transformers==4.37.2 # for pyiqa
 
-bench_json = "data/sft_data/AesEditor/data_json/aes_edit_test.jsonl"
+bench_json = "data/sft_data/AesEditor/data_json/ae_test.jsonl"
 data_dir = "data/sft_data/AesEditor/"
 result_dir = "results/aes_eval_bak/aes_edit_bagel/edited_images"
 
@@ -124,6 +124,8 @@ def main_task(lines, source_metrics, worker_id):
                 'delta_e_scores': [],
                 'clip_t_scores': [],
                 'clip_i_scores': [],
+                'aesclip_t_scores': [],
+                'aesclip_i_scores': [],
                 'niqe_scores': [],
                 'nima_scores': [],
                 'musiq_scores': [],
@@ -134,7 +136,8 @@ def main_task(lines, source_metrics, worker_id):
         
         # Construct image paths
         target_path = os.path.join(data_dir, image_name)
-        result_path = os.path.join(result_dir, image_name.rsplit(".", 1)[0] + ".png")
+        # result_path = os.path.join(result_dir, image_name)
+        result_path = os.path.join(data_dir, item["raw"])
         if not os.path.exists(result_path):
             source_metrics[source]['skipped_count'] += 1
             continue
@@ -177,19 +180,26 @@ def main_task(lines, source_metrics, worker_id):
             # Preprocess images for CLIP
             target_clip = clip_preprocess(target_pil).unsqueeze(0).to(device)
             result_clip = clip_preprocess(result_pil).unsqueeze(0).to(device)
-            
             # Encode images
             target_feature = clip_model.encode_image(target_clip)
             result_feature = clip_model.encode_image(result_clip)
-            
             # Normalize features
             target_feature = F.normalize(target_feature, p=2, dim=1)
             result_feature = F.normalize(result_feature, p=2, dim=1)
-            
             # Calculate CLIP-I (image-image similarity)
             clip_i_score = (target_feature * result_feature).sum(dim=1).cpu().item()
             source_metrics[source]['clip_i_scores'].append(clip_i_score)
             
+            # Calculate AesCLIP-T (text-image similarity) and AesCLIP-I (image-image similarity)
+            target_aesclip = aesclip_preprocess(target_pil).unsqueeze(0).to(device)
+            result_aesclip = aesclip_preprocess(result_pil).unsqueeze(0).to(device)
+            target_aesclip_feature = aesclip_model.encode_image(target_aesclip)
+            result_aesclip_feature = aesclip_model.encode_image(result_aesclip)
+            target_aesclip_feature = F.normalize(target_aesclip_feature, p=2, dim=1)
+            result_aesclip_feature = F.normalize(result_aesclip_feature, p=2, dim=1)
+            aesclip_i_score = (target_aesclip_feature * result_aesclip_feature).sum(dim=1).cpu().item()
+            source_metrics[source]['aesclip_i_scores'].append(aesclip_i_score)
+
             # Calculate CLIP-T (text-image similarity) if instruction exists
             if instruction:
                 text_token = clip.tokenize([instruction]).to(device)
@@ -197,29 +207,34 @@ def main_task(lines, source_metrics, worker_id):
                 text_feature = F.normalize(text_feature, p=2, dim=1)
                 clip_t_score = (text_feature * result_feature).sum(dim=1).cpu().item()
                 source_metrics[source]['clip_t_scores'].append(clip_t_score)
+                
+                text_aesclip_feature = aesclip_model.encode_text(text_token)
+                text_aesclip_feature = F.normalize(text_aesclip_feature, p=2, dim=1)
+                aesclip_t_score = (text_aesclip_feature * result_aesclip_feature).sum(dim=1).cpu().item()
+                source_metrics[source]['aesclip_t_scores'].append(aesclip_t_score)
         
         # Calculate pyiqa metrics (NIQE, NIMA, MUSIQ, Q-Align)
         # Convert result image to tensor format for pyiqa [0, 1] range
         result_tensor_pyiqa = torch.from_numpy(result_img).float().permute(2, 0, 1).unsqueeze(0) / 255.0
         result_tensor_pyiqa = result_tensor_pyiqa.to(device)
         
-        with torch.no_grad():
-            # NIQE (No-Reference Image Quality Assessment)
-            niqe_score = niqe_metric(result_tensor_pyiqa).cpu().item()
-            source_metrics[source]['niqe_scores'].append(niqe_score)
+        # with torch.no_grad():
+        #     # NIQE (No-Reference Image Quality Assessment)
+        #     niqe_score = niqe_metric(result_tensor_pyiqa).cpu().item()
+        #     source_metrics[source]['niqe_scores'].append(niqe_score)
             
-            # NIMA (Neural Image Assessment)
-            nima_score = nima_metric(result_tensor_pyiqa).cpu().item()
-            source_metrics[source]['nima_scores'].append(nima_score)
+        #     # NIMA (Neural Image Assessment)
+        #     nima_score = nima_metric(result_tensor_pyiqa).cpu().item()
+        #     source_metrics[source]['nima_scores'].append(nima_score)
             
-            # MUSIQ (Multi-Scale Image Quality Transformer)
-            musiq_score = musiq_metric(result_tensor_pyiqa).cpu().item()
-            source_metrics[source]['musiq_scores'].append(musiq_score)
+        #     # MUSIQ (Multi-Scale Image Quality Transformer)
+        #     musiq_score = musiq_metric(result_tensor_pyiqa).cpu().item()
+        #     source_metrics[source]['musiq_scores'].append(musiq_score)
             
-            # Q-Align (aesthetic score)
-            # qalign_score = qalign_metric(result_tensor_pyiqa, task_='aesthetic').cpu().item()
-            # # qalign_score = qalign_metric(result_tensor_pyiqa, task_='quality').cpu().item()
-            # source_metrics[source]['qalign_scores'].append(qalign_score)
+        #     # Q-Align (aesthetic score)
+        #     qalign_score = qalign_metric(result_tensor_pyiqa, task_='aesthetic').cpu().item()
+        #     # qalign_score = qalign_metric(result_tensor_pyiqa, task_='quality').cpu().item()
+        #     source_metrics[source]['qalign_scores'].append(qalign_score)
         
         source_metrics[source]['processed_count'] += 1
         
@@ -237,13 +252,18 @@ if __name__ == "__main__":
     # Initialize CLIP
     print("Loading CLIP model...")
     clip_model, clip_preprocess = clip.load("ViT-B/32", device=device)
+
+    # Initialize AesCLIP
+    print("Loading AesCLIP model...")
+    aesclip_model, aesclip_preprocess = clip.load("ViT-B/16", device=device)
+    aesclip_model.load_state_dict(torch.load("models/AesCLIP_weight/AesCLIP", map_location=device))
     
     # Initialize pyiqa metrics
     print("Loading pyiqa metrics...")
-    niqe_metric = pyiqa.create_metric('niqe', device=device)
-    nima_metric = pyiqa.create_metric('nima', device=device)
-    musiq_metric = pyiqa.create_metric('musiq-ava', device=device)
-    qalign_metric = pyiqa.create_metric('qalign', device=device)
+    # niqe_metric = pyiqa.create_metric('niqe', device=device)
+    # nima_metric = pyiqa.create_metric('nima', device=device)
+    # musiq_metric = pyiqa.create_metric('musiq-ava', device=device)
+    # qalign_metric = pyiqa.create_metric('qalign', device=device)
     
     # Storage for metrics grouped by source
     source_metrics = {}
@@ -252,7 +272,7 @@ if __name__ == "__main__":
     with open(bench_json, 'r') as f:
         bench_data = f.readlines()
     
-    num_workers = 10
+    num_workers = 16
     with concurrent.futures.ThreadPoolExecutor(max_workers=num_workers) as executor:
         futures = [executor.submit(main_task, bench_data[i::num_workers], source_metrics, i) for i in range(num_workers)]
 
@@ -270,6 +290,8 @@ if __name__ == "__main__":
     overall_delta_e = []
     overall_clip_t = []
     overall_clip_i = []
+    overall_aesclip_t = []
+    overall_aesclip_i = []
     overall_niqe = []
     overall_nima = []
     overall_musiq = []
@@ -283,6 +305,8 @@ if __name__ == "__main__":
             avg_delta_e = np.mean(metrics['delta_e_scores'])
             avg_clip_i = np.mean(metrics['clip_i_scores']) if metrics['clip_i_scores'] else 0.0
             avg_clip_t = np.mean(metrics['clip_t_scores']) if metrics['clip_t_scores'] else 0.0
+            avg_aesclip_i = np.mean(metrics['aesclip_i_scores']) if metrics['aesclip_i_scores'] else 0.0
+            avg_aesclip_t = np.mean(metrics['aesclip_t_scores']) if metrics['aesclip_t_scores'] else 0.0
             avg_niqe = np.mean(metrics['niqe_scores'])
             avg_nima = np.mean(metrics['nima_scores'])
             avg_musiq = np.mean(metrics['musiq_scores'])
@@ -294,6 +318,8 @@ if __name__ == "__main__":
             overall_delta_e.extend(metrics['delta_e_scores'])
             overall_clip_i.extend(metrics['clip_i_scores'])
             overall_clip_t.extend(metrics['clip_t_scores'])
+            overall_aesclip_i.extend(metrics['aesclip_i_scores'])
+            overall_aesclip_t.extend(metrics['aesclip_t_scores'])
             overall_niqe.extend(metrics['niqe_scores'])
             overall_nima.extend(metrics['nima_scores'])
             overall_musiq.extend(metrics['musiq_scores'])
@@ -309,6 +335,8 @@ if __name__ == "__main__":
             print(f"Average Delta E: {avg_delta_e:.6f}")
             print(f"Average CLIP-T: {avg_clip_t:.6f}")
             print(f"Average CLIP-I: {avg_clip_i:.6f}")
+            print(f"Average AesCLIP-T: {avg_aesclip_t:.6f}")
+            print(f"Average AesCLIP-I: {avg_aesclip_i:.6f}")
             print(f"Average NIQE: {avg_niqe:.6f}")
             print(f"Average NIMA: {avg_nima:.6f}")
             print(f"Average MUSIQ: {avg_musiq:.6f}")
@@ -333,6 +361,10 @@ if __name__ == "__main__":
             print(f"Overall Average CLIP-T: {np.mean(overall_clip_t):.6f}")
         if overall_clip_i:
             print(f"Overall Average CLIP-I: {np.mean(overall_clip_i):.6f}")
+        if overall_aesclip_t:
+            print(f"Overall Average AesCLIP-T: {np.mean(overall_aesclip_t):.6f}")
+        if overall_aesclip_i:
+            print(f"Overall Average AesCLIP-I: {np.mean(overall_aesclip_i):.6f}")
         if overall_niqe:
             print(f"Overall Average NIQE: {np.mean(overall_niqe):.6f}")
         if overall_nima:
