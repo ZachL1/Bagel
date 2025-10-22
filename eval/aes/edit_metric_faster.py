@@ -16,9 +16,10 @@ import sys
 import concurrent.futures
 sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'IQA-PyTorch'))
 import pyiqa
+import imagesize
 
 # pip install git+https://github.com/openai/CLIP.git
-# pip install lpips scikit-image==0.24
+# pip install lpips scikit-image==0.24 imagesize
 # pip install timm icecream transformers==4.37.2 # for pyiqa
 # https://drive.google.com/drive/folders/1kSjpyfBGL0k4bs2lkyL9HFVzcLZWGdKY to models/AesCLIP_weight/AesCLIP
 
@@ -125,7 +126,13 @@ class EditDataset(Dataset):
         with open(self.json_path, 'r') as f:
             for line in f:
                 item = json.loads(line.strip())
-                if not os.path.exists(os.path.join(self.data_dir, item["target"])):
+                raw_path = os.path.join(self.data_dir, item["raw"])
+                target_path = os.path.join(self.data_dir, item["target"])
+                if not os.path.exists(raw_path) or not os.path.exists(target_path):
+                    continue
+                raw_size = imagesize.get(raw_path)
+                target_size = imagesize.get(target_path)
+                if abs(raw_size[0]/raw_size[1] - target_size[0]/target_size[1]) > 0.01:
                     continue
                 data.append(item)
         return data
