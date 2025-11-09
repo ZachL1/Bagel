@@ -6,6 +6,10 @@ node_rank=0
 master_addr=127.0.0.1
 master_port=12345
 
+exp_name=debug
+output_path=./results/$exp_name
+ckpt_path=$output_path/checkpoints
+
 llm_path=./models/Qwen2.5-0.5B-Instruct
 vae_path=./models/BAGEL-7B-MoT/ae.safetensors
 vit_path=./models/siglip-so400m-14-980-flash-attn2-navit
@@ -17,17 +21,27 @@ torchrun \
   --master_addr=$master_addr \
   --master_port=$master_port \
   train/pretrain_unified_navit.py \
-  --dataset_config_file ./data/configs/aes.yaml \
+  --dataset_config_file ./data/configs/img_trans.yaml \
   --layer_module Qwen2MoTDecoderLayer \
   --vae_path $vae_path \
   --vit_path $vit_path \
   --llm_path $llm_path \
   --use_flex True \
   --max_latent_size 64 \
+  --expected_num_tokens 10240 \
+  --max_num_tokens 11520 \
+  --max_num_tokens_per_sample 10240 \
+  --max_latent_size 64 \
   --max_num_tokens 18432 \
   --num_workers 1 \
   --num_shard 1 \
   --wandb_runid 0 \
+  --wandb_name $exp_name \
+  --results_dir $output_path \
+  --checkpoint_dir $ckpt_path \
+  --save_every 1000 \
+  --log_every 1 \
+  --wandb_offline True \
 
 
 # model_path=models/BAGEL-7B-MoT

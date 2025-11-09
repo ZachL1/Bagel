@@ -183,11 +183,11 @@ def process_jsonl(input_file, output_file, data_dir, force_redownload=False, num
             
             # Add path fields
             if 'tgt_img_url' in data:
-                data['tgt_img_path'] = str(url_to_path[data['tgt_img_url']])
+                data['tgt_img_path'] = str(url_to_path[data['tgt_img_url']].replace(data_path, ''))
             if 'src_img_url' in data:
-                data['src_img_path'] = str(url_to_path[data['src_img_url']])
+                data['src_img_path'] = str(url_to_path[data['src_img_url']].replace(data_path, ''))
             if 'inpainted_img_url' in data:
-                data['inpainted_img_path'] = str(url_to_path[data['inpainted_img_url']])
+                data['inpainted_img_path'] = str(url_to_path[data['inpainted_img_url']].replace(data_path, ''))
             
             f.write(json.dumps(data, ensure_ascii=False) + '\n')
             successful_lines += 1
