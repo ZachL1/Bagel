@@ -179,6 +179,8 @@ class Bagel(PreTrainedModel):
             vit_token_pos_emb = self.vit_pos_embed(packed_vit_position_ids)
             packed_vit_token_embed = packed_vit_token_embed + vit_token_pos_emb
             packed_sequence[packed_vit_token_indexes] = packed_vit_token_embed
+        else:
+            print("[NOTICE] packed_vit_tokens is None.")
 
         if self.config.visual_gen:
             p = self.latent_patch_size
@@ -210,13 +212,20 @@ class Bagel(PreTrainedModel):
                 packed_gen_token_indexes=packed_vae_token_indexes,
             )
 
-        last_hidden_state = self.language_model(
+        outputs = self.language_model(
             packed_sequence=packed_sequence,
             sample_lens=sample_lens,
             attention_mask=attention_mask,
             packed_position_ids=packed_position_ids,
             **extra_inputs,
         )
+        
+        router_logits = None
+        if isinstance(outputs, tuple):
+            last_hidden_state = outputs[0]
+            router_logits = outputs[1]
+        else:
+            last_hidden_state = outputs
 
         mse = None
         packed_mse_preds = None
@@ -244,8 +253,17 @@ class Bagel(PreTrainedModel):
             pred_vis['predicted_latents'] = predicted_latents.detach()
             pred_vis['all_vae_latent_shapes'] = patchified_vae_latent_shapes
             pred_vis['all_packed_timesteps'] = packed_timesteps.detach()
+
+        aux = None
+        if router_logits is not None and len(router_logits) > 0:
+             loss_list = []
+             for logits in router_logits:
+                 target = torch.zeros(logits.size(0), dtype=torch.long, device=logits.device)
+                 loss_list.append(F.cross_entropy(logits, target))
+             if len(loss_list) > 0:
+                 aux = torch.stack(loss_list).mean()
             
-        return dict(mse=mse, ce=ce), pred_vis
+        return dict(mse=mse, ce=ce, aux=aux), pred_vis
 
 
     def prepare_prompts(self, curr_kvlens, curr_rope, prompts, tokenizer, new_token_ids):

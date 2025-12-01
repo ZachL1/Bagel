@@ -886,7 +886,7 @@ class Qwen2MoTDecoderAesLayer(Qwen2MoTDecoderLayer):
         )
         packed_sequence = residual + packed_sequence_
 
-        return packed_sequence
+        return packed_sequence, router_logits
     
     def forward_inference(
         self,
@@ -1161,14 +1161,21 @@ class Qwen2Model(Qwen2PreTrainedModel):
                 packed_gen_token_indexes=packed_gen_token_indexes,
             )
 
+        all_router_logits = []
         for decoder_layer in self.layers:
-            packed_sequence = decoder_layer(
+            layer_outputs = decoder_layer(
                 packed_sequence=packed_sequence,
                 sample_lens=sample_lens,
                 attention_mask=attention_mask,
                 packed_position_embeddings=packed_position_embeddings,
                 **extra_inputs
             )
+            if isinstance(layer_outputs, tuple):
+                packed_sequence = layer_outputs[0]
+                if layer_outputs[1] is not None:
+                    all_router_logits.append(layer_outputs[1])
+            else:
+                packed_sequence = layer_outputs
 
         if self.use_moe:
             packed_sequence_ = torch.zeros_like(packed_sequence)
@@ -1176,9 +1183,9 @@ class Qwen2Model(Qwen2PreTrainedModel):
             if self.config.freeze_und:
                 packed_sequence_[packed_und_token_indexes] = packed_sequence_[packed_und_token_indexes].detach()
             packed_sequence_[packed_gen_token_indexes] = self.norm_moe_gen(packed_sequence[packed_gen_token_indexes])
-            return packed_sequence_
+            return packed_sequence_, all_router_logits
         else:
-            return self.norm(packed_sequence)
+            return self.norm(packed_sequence), all_router_logits
 
     def forward_inference(
         self,

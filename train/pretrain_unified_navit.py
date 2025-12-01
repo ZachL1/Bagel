@@ -288,6 +288,10 @@ class TrainingArguments:
         default=1.0,
         metadata={"help": "Scaling factor for the language cross-entropy loss term."}
     )
+    aux_weight: float = field(
+        default=1.0,
+        metadata={"help": "Scaling factor for the auxiliary loss term to normalize the aes moe router."}
+    )
     ce_loss_reweighting: bool = field(
         default=False,
         metadata={"help": "Reweight CE loss by token importance (provided via ce_loss_weights)."}
@@ -664,6 +668,13 @@ def main():
             assert not training_args.visual_gen
             loss_dict["mse"] = torch.tensor(0, device=device)
             total_mse_tokens = torch.tensor(0, device=device)
+        
+        aux = loss_dict["aux"]
+        if aux is not None:
+            loss_dict["aux"] = aux.detach()
+            loss = loss + aux * training_args.aux_weight
+        else:
+            loss_dict["aux"] = torch.tensor(0.0, device=device)
 
         optimizer.zero_grad()
         loss.backward()

@@ -96,16 +96,17 @@ class AesEditorIterableDataset(InterleavedBaseIterableDataset):
                     target_image = pil_img2rgb(Image.open(target_image_path))
                     
                     # Get instruction
-                    instruction = data_item['instruction']
-                    if data_item['type'] == 'enhancement' and data_item['instructions'] and random.random() < 0.5:
-                        instruction = data_item['instructions']
-                    elif data_item['type'] != 'enhancement':
-                        # Randomly select instruction to avoid bias
-                        p = random.random()
-                        if p > 0.2 and p < 0.8:
-                            instruction = random.choice(instructions_set[data_item['type']])
-                        elif p <= 0.2:
-                            instruction = random.choice(instructions_set["general"])
+                    instruction = random.choice(data_item['instructions'])
+                    # instruction = data_item['instruction']
+                    # if data_item['type'] == 'enhancement' and data_item['instructions'] and random.random() < 0.5:
+                    #     instruction = data_item['instructions']
+                    # elif data_item['type'] != 'enhancement':
+                    #     # Randomly select instruction to avoid bias
+                    #     p = random.random()
+                    #     if p > 0.2 and p < 0.8:
+                    #         instruction = random.choice(instructions_set[data_item['type']])
+                    #     elif p <= 0.2:
+                    #         instruction = random.choice(instructions_set["general"])
                     
                 except Exception as e:
                     traceback.print_exc()
