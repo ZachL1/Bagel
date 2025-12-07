@@ -18,9 +18,7 @@ sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'IQA-Py
 import pyiqa
 import imagesize
 
-# pip install git+https://github.com/openai/CLIP.git
-# pip install lpips scikit-image==0.24 imagesize
-# pip install timm icecream transformers==4.37.2 # for pyiqa
+# pip install openai-clip lpips scikit-image==0.24 timm icecream transformers==4.37.2 # for pyiqa
 # https://drive.google.com/drive/folders/1kSjpyfBGL0k4bs2lkyL9HFVzcLZWGdKY to models/AesCLIP_weight/AesCLIP
 
 bench_json = "data/sft_data/AesEditor/data_json/ae_test.jsonl"
@@ -126,14 +124,14 @@ class EditDataset(Dataset):
         with open(self.json_path, 'r') as f:
             for line in f:
                 item = json.loads(line.strip())
-                raw_path = os.path.join(self.data_dir, item["raw"])
                 target_path = os.path.join(self.data_dir, item["target"])
-                if not os.path.exists(raw_path) or not os.path.exists(target_path):
+                result_path = os.path.join(result_dir, item["target"])
+                if not os.path.exists(result_path) or not os.path.exists(target_path):
                     continue
-                raw_size = imagesize.get(raw_path)
-                target_size = imagesize.get(target_path)
-                if abs(raw_size[0]/raw_size[1] - target_size[0]/target_size[1]) > 0.01:
-                    continue
+                # result_size = imagesize.get(result_path)
+                # target_size = imagesize.get(target_path)
+                # if abs(result_size[0]/result_size[1] - target_size[0]/target_size[1]) > 0.01:
+                #     continue
                 data.append(item)
         return data
     
@@ -314,8 +312,8 @@ if __name__ == "__main__":
         source = item.get("source", "unknown")  # Get source field, default to "unknown"
         instruction = item.get("instruction", "")  # Get instruction for CLIP-T
         target_path = os.path.join(data_dir, image_name)
-        # result_path = os.path.join(result_dir, image_name)
-        result_path = os.path.join(data_dir, item["raw"])
+        result_path = os.path.join(result_dir, image_name)
+        # result_path = os.path.join(data_dir, item["raw"])
         target_pil, target_img = load_image(target_path, 512)
         result_pil, result_img = load_image(result_path, 512)
         if target_img.shape != result_img.shape:
