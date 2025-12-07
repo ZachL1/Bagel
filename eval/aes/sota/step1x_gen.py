@@ -36,8 +36,8 @@ dataloader=DataLoader(
 )
 #load pipeline
 pipe = Step1XEditPipelineV1P2.from_pretrained("./models/Step1X-Edit-v1p2-preview", 
-                                                torch_dtype=torch.bfloat16,
-                                                device_map='auto')
+                                                torch_dtype=torch.bfloat16)
+pipe.to('cuda')
 
 #run_image_edit_inference
 with tqdm(total=len(dataset),desc="Processing images",unit="img") as pbar:
@@ -57,7 +57,7 @@ with tqdm(total=len(dataset),desc="Processing images",unit="img") as pbar:
                     continue
                 
                 enable_thinking_mode=True
-                enable_reflection_mode=True
+                enable_reflection_mode=False
                 pipe_output = pipe(
                     image=images[i],
                     prompt=prompts[i],

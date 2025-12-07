@@ -21,9 +21,15 @@ import imagesize
 # pip install openai-clip lpips scikit-image==0.24 timm icecream transformers==4.37.2 # for pyiqa
 # https://drive.google.com/drive/folders/1kSjpyfBGL0k4bs2lkyL9HFVzcLZWGdKY to models/AesCLIP_weight/AesCLIP
 
-bench_json = "data/sft_data/AesEditor/data_json/ae_test.jsonl"
-data_dir = "data/sft_data/AesEditor/"
-result_dir = "results/aes_eval_bak/aes_edit_bagel/edited_images"
+bench_json = "data/sft_data/AesEditor/data_json/all_test_c.jsonl"
+data_dir = "data/sft_data/Pexels/"
+result_dir = "results/pexels_eval/aes_edit_bagel/edited_images"
+result_dir = "results/pexels_eval/aes_edit_flux/edited_images"
+result_dir = "results/pexels_eval/aes_edit_qwen/edited_images"
+result_dir = "results/pexels_eval/aes_edit_step1x/edited_images"
+result_dir = "results/pexels_eval/aes_edit_hidream/edited_images"
+result_dir = "results/pexels_eval/pexel_all_30/edited_images"
+result_dir = "results/pexels_eval/pexel_nov_30/edited_images"
 
 
 def calculate_psnr(img1, img2):

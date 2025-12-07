@@ -9,9 +9,9 @@ from diffusers import QwenImageEditPipeline
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))))
 from eval.aes.sota.custom_dataset import ImageEditDataset, collate_fn
 
-# pip install diffusers
-# pip install protobuf==3.20.0
+# pip install diffusers protobuf==3.20.0 huggingface-hub==0.34.0
 # /opt/conda/lib/python3.11/site-packages/transformers/generation/configuration_utils.py:1288
+# /usr/local/lib/python3.11/site-packages/transformers/generation/configuration_utils.py:1288
 # decoder_config_dict = decoder_config.to_dict() # change to :
 # decoder_config_dict = decoder_config.to_dict() if isinstance(decoder_config, PretrainedConfig) else decoder_config
 
