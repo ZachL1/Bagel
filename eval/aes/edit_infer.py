@@ -35,7 +35,7 @@ def load_edit_data(data_path: str, data_split: str, max_samples: int, base_image
         if data_count.get(item["source"], 0) < max_samples:
             data_count[item["source"]] = data_count.get(item["source"], 0) + 1
 
-            item["output_image"] = os.path.join(image_output_dir, item["target"])
+            item["output_image"] = os.path.join(image_output_dir, item["target"] if item["source"] != "Pexels.com" else item["raw"])
             item["raw"] = os.path.join(base_image_dir, item["raw"])
             item["target"] = os.path.join(base_image_dir, item["target"])
 

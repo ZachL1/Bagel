@@ -318,7 +318,7 @@ if __name__ == "__main__":
         source = item.get("source", "unknown")  # Get source field, default to "unknown"
         instruction = item.get("instruction", "")  # Get instruction for CLIP-T
         target_path = os.path.join(data_dir, image_name)
-        result_path = os.path.join(result_dir, image_name)
+        result_path = os.path.join(result_dir, image_name if source != "Pexels.com" else item["raw"])
         # result_path = os.path.join(data_dir, item["raw"])
         target_pil, target_img = load_image(target_path, 512)
         result_pil, result_img = load_image(result_path, 512)

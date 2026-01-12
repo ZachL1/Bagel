@@ -5,22 +5,22 @@ from PIL import Image
 from tqdm import tqdm
 import matplotlib.pyplot as plt
 
-bench_json = "data/sft_data/AesEditor/data_json/aes_edit_test.jsonl"
-data_dir = "data/sft_data/AesEditor/"
+bench_json = "data/sft_data/Pexels_test/all_test_c.jsonl"
+data_dir = "data/sft_data/Pexels_test/"
 result_dirs = {
-    "Bagel": "results/aes_eval/aes_edit_bagel/edited_images",
-    "flux": "results/aes_eval/flux/edited_images",
-    "qwen_image": "results/aes_eval/qwen/edited_images",
-    # "Bagel_14k": "results/aes_eval/aes_edit_bagel_14/edited_images",
-    # "Bagel_28k": "results/aes_eval/aes_edit_bagel_28/edited_images",
-    # "Qwen_60k": "results/aes_eval/aes_edit_qwen_60/edited_images",
-    # "Bagel_r": "results/aes_eval/aes_edit_bagel_random_60k/edited_images",
-    # "Bagel_r_nov": "results/aes_eval/aes_edit_bagel_random_60k_nov/edited_images",
-    "Our": "results/aes_eval/aes_edit_bagel_random_60k_long/edited_images",
+    "instructp2p": "results/pexels_eval/instructp2p",
+    "ultraedit": "results/pexels_eval/ultraedit",
+    "step1x": "results/pexels_eval/aes_edit_step1x/edited_images",
+    "hidream": "results/pexels_eval/aes_edit_hidream/edited_images",
+    "icedit": "results/pexels_eval/icedit",
+    "flux": "results/pexels_eval/aes_edit_flux/edited_images",
+    "qwen": "results/pexels_eval/aes_edit_qwen/edited_images",
+    "Bagel": "results/pexels_eval/aes_edit_bagel/edited_images",
+    "Our": "results/pexels_eval/sft_all_22/edited_images",
 }
 
 show_count = 500
-save_dir = "results/aes_eval/show_demo"
+save_dir = "results/pexels_eval/show_demo"
 os.makedirs(save_dir, exist_ok=True)
 
 if __name__ == "__main__":
@@ -49,7 +49,7 @@ if __name__ == "__main__":
         
         result_images = {}
         for tag, result_dir in result_dirs.items():
-            result_path = os.path.join(result_dir, data['target'])
+            result_path = os.path.join(result_dir, data['target'] if data['source'] != "Pexels.com" else data['raw'])
             result_image = Image.open(result_path)
             result_images[tag] = result_image
         if len(result_images) != len(result_dirs):
@@ -78,7 +78,9 @@ if __name__ == "__main__":
 
         fig.suptitle(instruction, wrap=True)
         fig.tight_layout()
-        save_path = os.path.join(save_dir, f"{sample_type}_{show_count:03d}.png")
+        # save_path = os.path.join(save_dir, f"{sample_type}_{show_count:03d}.png")
+        save_path = os.path.join(save_dir, data['target'] if data['source'] != "Pexels.com" else data['raw'])
+        os.makedirs(os.path.dirname(save_path), exist_ok=True)
         plt.savefig(save_path, dpi=150, bbox_inches='tight')
         plt.close()
         show_count -= 1
