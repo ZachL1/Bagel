@@ -45,7 +45,7 @@ if __name__ == "__main__":
         image_path = os.path.join(data_dir, data['target'])
         target_image = Image.open(image_path)
         instruction = data['instruction'] + f" (source: {data['source']})"
-        sample_type = data['type'].replace(" ", "_")
+        sample_type = data['type'].replace(" ", "_") + '_' + data['source'].replace(" ", "_")
         
         result_images = {}
         for tag, result_dir in result_dirs.items():

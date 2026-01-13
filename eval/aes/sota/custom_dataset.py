@@ -41,6 +41,8 @@ class ImageEditDataset(Dataset):
             if data_count.get(source, 0) < max_samples:
                 data_count[source] = data_count.get(source, 0) + 1
 
+                if item.get("source", "") == "Pexels.com":
+                    item["target"] = item["raw"]
                 target_path = item.get("target", "")
                 output_file_path = os.path.join(self.output_path, target_path)
                 
