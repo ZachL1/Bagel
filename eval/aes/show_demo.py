@@ -8,15 +8,15 @@ import matplotlib.pyplot as plt
 bench_json = "data/sft_data/Pexels_test/all_test_c.jsonl"
 data_dir = "data/sft_data/Pexels_test/"
 result_dirs = {
-    "instructp2p": "results/pexels_eval/instructp2p",
-    "ultraedit": "results/pexels_eval/ultraedit",
+    "instructp2p": "results/pexels_eval/instructp2p_new",
+    "ultraedit": "results/pexels_eval/ultraedit_new",
     "step1x": "results/pexels_eval/aes_edit_step1x/edited_images",
     "hidream": "results/pexels_eval/aes_edit_hidream/edited_images",
-    "icedit": "results/pexels_eval/icedit",
+    "icedit": "results/pexels_eval/icedit_new",
     "flux": "results/pexels_eval/aes_edit_flux/edited_images",
     "qwen": "results/pexels_eval/aes_edit_qwen/edited_images",
     "Bagel": "results/pexels_eval/aes_edit_bagel/edited_images",
-    "Our": "results/pexels_eval/sft_all_22/edited_images",
+    "Our": "results/pexels_eval/sft_all_14/edited_images",
 }
 
 show_count = 500
@@ -34,7 +34,8 @@ if __name__ == "__main__":
         use = True
         for tag, result_dir in result_dirs.items():
             result_path = os.path.join(result_dir, data['target'])
-            if not os.path.exists(result_path):
+            raw_path = os.path.join(result_dir, data['raw'])
+            if not os.path.exists(result_path) and not os.path.exists(raw_path):
                 use = False
                 break
         if not use:
@@ -49,7 +50,9 @@ if __name__ == "__main__":
         
         result_images = {}
         for tag, result_dir in result_dirs.items():
-            result_path = os.path.join(result_dir, data['target'] if data['source'] != "Pexels.com" else data['raw'])
+            result_path = os.path.join(result_dir, data['target'])
+            if data['source'] == "Pexels.com" or result_dir.endswith("_new"):
+                result_path = os.path.join(result_dir, data['raw'])
             result_image = Image.open(result_path)
             result_images[tag] = result_image
         if len(result_images) != len(result_dirs):
